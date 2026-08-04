@@ -341,7 +341,7 @@ const CONFIG = {
   tableName: "Stock",
   // Paste an ORGANISATION "can edit" share link to the data file here so ALL staff
   // read/write the same file (not their own OneDrive). Leave blank = owner-only (/me/drive).
-  shareUrl:  "https://redbayboats-my.sharepoint.com/:x:/p/joseph/IQCg5COCInIMTbj3ueuCYHYGAVJyf784F5sU0-pH2dLH4dY"
+  shareUrl:  "https://redbayboats.sharepoint.com/:f:/s/RBBQMS/IgCO_a6gnJ6PQb5iH9z8UuYxAWUE6D2kJjtKNiBr8xseF8o?e=emSA7d"
 };
 /* ================= */
 
@@ -446,7 +446,9 @@ function b64url(s){ return btoa(unescape(encodeURIComponent(s))).replace(/=+$/,'
 async function resolveBook(){
  if(bookRoot)return bookRoot;
  const su=(CONFIG.shareUrl||'').trim();
- if(su){ const j=await gfetch(`/shares/u!${b64url(su)}/driveItem?$select=id,parentReference`); bookRoot=`/drives/${j.parentReference.driveId}/items/${j.id}`; }
+ if(su){ const it=await gfetch(`/shares/u!${b64url(su)}/driveItem?$select=id,name,folder,parentReference`); const drive=it.parentReference&&it.parentReference.driveId;
+   if(it.folder){ const fname=CONFIG.filePath.split('/').pop(); const ch=await gfetch(`/drives/${drive}/items/${it.id}/children?$select=id,name&$top=200`); const f=(ch.value||[]).find(x=>x.name===fname); if(!f)throw new Error('Data file "'+fname+'" not found in the shared folder'); bookRoot=`/drives/${drive}/items/${f.id}`; }
+   else { bookRoot=`/drives/${drive}/items/${it.id}`; } }
  else { bookRoot=`/me/drive/root:/${fileSeg()}:`; }
  return bookRoot;
 }
