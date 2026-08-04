@@ -551,7 +551,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function renderSide(){
  const side=document.getElementById('side'); if(!side)return;
  const total=data.length;
- let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><div class="sh">Sections</div>`;
+ let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
  h+=CATS.map(c=>`<button class="snav ${cur===c.id?'on':''}" onclick="setCur('${c.id}')">${c.n} <span class="cnt">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
  side.innerHTML=h;
@@ -591,14 +591,59 @@ function cardsFor(sec,q,showHead){
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+3){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+4){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
  if(cur==='usage'){ renderUsage(); return; }
+ if(cur==='mats'){ renderMaterials(); return; }
  const q=(val('q')||'').toLowerCase().trim();
  const secs=cur==='all'?CATS:CATS.filter(c=>c.id===cur);
  const wrap=document.getElementById('list');
  if(mqDesktop.matches){ wrap.innerHTML=secs.map(s=>tableFor(s,q)).join(''); }
  else{ wrap.innerHTML=`<div class="tap">Tap a line to edit · use − / + to change the count</div>`+secs.map(s=>cardsFor(s,q,cur==='all')).join(''); }
+}
+/* ---------- material TYPE catalogue (folds every spelling into one type) ---------- */
+const MATTYPES=[
+ {id:'csm300',label:'300g CSM matt',unit:'roll'},
+ {id:'csm450',label:'450g CSM matt',unit:'roll'},
+ {id:'csm600',label:'600g CSM matt',unit:'roll'},
+ {id:'csm900',label:'900g CSM matt',unit:'roll'},
+ {id:'wr800',label:'800g woven roving',unit:'roll'},
+ {id:'resin2420',label:'2.420PA resin',unit:'drum'},
+ {id:'r489pa',label:'489PA',unit:'drum'},
+ {id:'gelcoat',label:'Gelcoat',unit:'drum'},
+ {id:'catalyst',label:'Catalyst',unit:'drum'}
+];
+// kg per roll/drum — fill these when Joseph provides them; nulls show "set weight"
+const PACKKG={csm300:null,csm450:null,csm600:null,csm900:null,wr800:null,resin2420:25,r489pa:25,gelcoat:null,catalyst:null};
+function matchType(raw){ const s=String(raw||'').toLowerCase();
+ const wr=/\bwr\b|woven/.test(s), csm=/csm|chopped strand|matt|(^|[^a-z])mat([^a-z]|$)|emulsion/.test(s);
+ const num=(s.match(/300|450|600|800|900/)||[])[0];
+ if(wr&&num)return 'wr'+num;
+ if(csm&&num)return 'csm'+num;
+ if(/2\.?420/.test(s))return 'resin2420';
+ if(/489\s*pa/.test(s))return 'r489pa';
+ if(/gelcoat/.test(s))return 'gelcoat';
+ if(/catalyst/.test(s))return 'catalyst';
+ return null; }
+function renderMaterials(){
+ const wrap=document.getElementById('list');
+ const isLu=m=>String(m.note||'').indexOf('lay-up')===0, kg=m=>Math.abs(Number(m.qty)||0);
+ const lu=moves.filter(isLu);
+ const byId={}; MATTYPES.forEach(t=>byId[t.id]={t,rolls:0,usedKg:0,months:{},stockLines:0});
+ data.forEach(o=>{ if(o.cat!=='grp')return; const id=matchType(o.desc); if(id&&byId[id]){ byId[id].rolls+=(num(o.rem)||0); byId[id].stockLines++; } });
+ lu.forEach(m=>{ const id=matchType(m.item); if(id&&byId[id]){ byId[id].usedKg+=kg(m); const mo=String(m.date).slice(0,7); if(mo)byId[id].months[mo]=1; } });
+ const f1=x=>x==null?'—':(Math.round(x*10)/10);
+ const body=MATTYPES.map(t=>{ const b=byId[t.id],pk=PACKKG[t.id]; const nM=Math.max(1,Object.keys(b.months).length); const avg=b.usedKg/nM; const stockKg=pk!=null?b.rolls*pk:null; const cover=(stockKg!=null&&avg>0)?stockKg/avg:null;
+   let st='in',stl='OK'; if(pk==null){st='';stl='set weight';} else if(cover!=null){ if(cover<1.5){st='out';stl='REORDER';} else if(cover<3){st='low';stl='LOW';} } else if(b.rolls<=2){st='low';stl='CHECK';}
+   return `<tr><td class="desc">${esc(t.label)}<div class="specline">${b.stockLines} stock line${b.stockLines===1?'':'s'}${pk!=null?` · ${pk} kg/${t.unit}`:''}</div></td><td>${b.rolls||'—'}</td><td>${stockKg!=null?Math.round(stockKg):'<span class="mut">set weight</span>'}</td><td>${b.usedKg?Math.round(b.usedKg):'—'}</td><td>${avg?Math.round(avg):'—'}</td><td>${cover!=null?f1(cover)+' mo':'<span class="mut">—</span>'}</td><td><span class="tag ${st||'in'}">${stl}</span></td></tr>`;
+ }).join('');
+ const unStock=data.filter(o=>o.cat==='grp'&&!matchType(o.desc)).map(o=>o.desc);
+ const unUse={}; lu.forEach(m=>{ if(!matchType(m.item))unUse[m.item]=1; });
+ const un=(unStock.length||Object.keys(unUse).length)?`<div class="secttl">Not yet mapped to a type</div><div class="panel"><div class="pbody" style="max-height:none"><div class="dempty">${unStock.length?`<b>Stock:</b> ${unStock.map(esc).join(' · ')}<br><br>`:''}${Object.keys(unUse).length?`<b>Usage:</b> ${Object.keys(unUse).map(esc).join(' · ')}`:''}</div></div></div>`:'';
+ wrap.innerHTML=`<div class="secttl">Materials by type <span class="scount">${MATTYPES.length} types</span></div>
+  <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:16px">Every spelling is folded into one type — <b>900CSM</b>, <b>2x900csm</b> and <b>chopped strand mat 900</b> all count as 900g CSM matt. <b>Cover</b> (months of stock left at current usage) and reorder alerts switch on once you give me <b>kg per roll/drum</b>.</div>
+  <div class="tscroll"><table class="tbl"><thead><tr><th>Material type</th><th>In stock (${'rolls/drums'})</th><th>In stock (kg)</th><th>Used (kg)</th><th>Avg/mo (kg)</th><th>Cover</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>
+  ${un}`;
 }
 let usageFilter=null; // {type:'hull'|'batch'|'mat', val}
 function setUsageFilter(type,val){ if(usageFilter&&usageFilter.type===type&&usageFilter.val===val){usageFilter=null;}else{usageFilter={type,val};} render(); }
