@@ -462,7 +462,9 @@ async function loadServer(){
 async function loadData(){
  if(!account)return; setSync('busy','Loading…');
  try{ await loadServer(); saveCache(); if(queue.length)updatePending(); else setSync('ok','Up to date'); render(); }
- catch(e){ if(isNet(e)){ loadCache(); render(); updatePending(); } else { setSync('err',(''+e.message).slice(0,140)); } }
+ catch(e){ if(isNet(e)){ loadCache(); render(); updatePending(); }
+  else { const msg=(''+(e&&e.message||e)).slice(0,220); setSync('err',msg.slice(0,140)); const w=document.getElementById('list');
+   if(w)w.innerHTML=`<div class="empty" style="color:#B8341A;line-height:1.5"><b>Couldn't open the shared stock file.</b><br><br>Please read this message to Joseph:<br><span style="color:#333">${esc(msg)}</span><br><br><button class="save" style="max-width:200px;margin:8px auto 0" onclick="location.reload()">Try again</button></div>`; } }
 }
 function rowValues(o){
  const arr=new Array(Object.keys(colPos).length).fill('');
