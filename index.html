@@ -839,6 +839,20 @@ async function runMigrations(){
   localStorage.setItem('rbb_mig_chem_v1','1'); if(n){ try{ await loadServer(); }catch(_){} render(); }
  }catch(_){}
 }
+/* AI-assisted tidy: safe cosmetic normalisation only (spelling, spacing, location names).
+   Quantities / dates are NEVER auto-changed — those are flagged for the user. */
+function cleanText(s){ return String(s==null?'':s).replace(/\s{2,}/g,' ').trim(); }
+function cleanDesc(d){ let x=cleanText(d);
+ x=x.replace(/Cretamould/g,'Crestamould').replace(/\bFiberglass\b/g,'Fibreglass').replace(/\bfiberglass\b/g,'Fibreglass').replace(/chopped strand mad/gi,'chopped strand mat');
+ return x; }
+function cleanLoc(l){ let x=cleanText(l).replace(/she'?d/gi,'Shed'); const m=x.match(/^Shed\s*(\d+)$/i); if(m)x='Shed '+m[1]; return x; }
+async function cleanupMigration(){
+ try{ if(localStorage.getItem('rbb_mig_clean_v2'))return; let n=0;
+  for(const o of data){ const nd=cleanDesc(o.desc), nl=cleanLoc(o.loc);
+    if(nd!==(o.desc||'') || nl!==(o.loc||'')){ o.desc=nd; o.loc=nl; try{ await writeRowThrow(o); n++; }catch(_){ return; } } }
+  localStorage.setItem('rbb_mig_clean_v2','1'); if(n){ try{ await loadServer(); }catch(_){} render(); }
+ }catch(_){}
+}
 /* ---------- boot ---------- */
 function showApp(){ document.getElementById('gate').classList.add('hide'); document.getElementById('app').classList.remove('hide');
  document.getElementById('acct').innerHTML=account?`<span>${account.username||account.name||''}</span> ${(CONFIG.shareUrl||'').trim()?'':'<button class="mini" onclick="makeShareLink()">Set up sharing</button>'} <button class="mini" onclick="signOut()">Sign out</button>`:'';
@@ -854,7 +868,7 @@ window.addEventListener('offline',()=>{ updatePending(); });
  initMsal();
  try{ if(pca){ const resp=await pca.handleRedirectPromise(); if(resp&&resp.account)account=resp.account; else { const a=pca.getAllAccounts(); if(a.length)account=a[0]; } } }
  catch(e){ showGate(); return; }
- if(account){ loadCache(); showApp(); if(navigator.onLine){ await loadData(); await runMigrations(); flush(); } else { render(); updatePending(); } }
+ if(account){ loadCache(); showApp(); if(navigator.onLine){ await loadData(); await runMigrations(); await cleanupMigration(); flush(); } else { render(); updatePending(); } }
  else { showGate(); }
 })();
 </script>
