@@ -727,16 +727,16 @@ function renderMaterials(){
  data.forEach(o=>{ if(o.cat!=='grp')return; const id=matchType(o.desc); if(id&&byId[id]){ byId[id].rolls+=(num(o.rem)||0); byId[id].stockLines++; } });
  lu.forEach(m=>{ const id=matchType(m.item); if(id&&byId[id]){ byId[id].usedKg+=kg(m); const mo=String(m.date).slice(0,7); if(mo)byId[id].months[mo]=1; } });
  const f1=x=>x==null?'—':(Math.round(x*10)/10);
- const body=MATTYPES.map(t=>{ const b=byId[t.id],pk=PACKKG[t.id]; const nM=Math.max(1,Object.keys(b.months).length); const avg=b.usedKg/nM; const stockKg=pk!=null?b.rolls*pk:null; const cover=(stockKg!=null&&avg>0)?stockKg/avg:null;
+ const body=MATTYPES.map(t=>{ const b=byId[t.id],pk=PACKKG[t.id]; const nM=Math.max(1,Object.keys(b.months).length); const avg=b.usedKg/nM; const stockKg=pk!=null?b.rolls*pk:null; const cover=(stockKg!=null&&avg>0)?stockKg/avg:null; const ck=COSTKG[t.id]; const usedCost=b.usedKg*(ck||0);
    let st='in',stl='OK'; if(pk==null){st='';stl='set weight';} else if(cover!=null){ if(cover<1.5){st='out';stl='REORDER';} else if(cover<3){st='low';stl='LOW';} } else if(b.rolls<=2){st='low';stl='CHECK';}
-   return `<tr><td class="desc">${esc(t.label)}<div class="specline">${b.stockLines} stock line${b.stockLines===1?'':'s'}${pk!=null?` · ${pk} kg/${t.unit}`:''}</div></td><td>${b.rolls||'—'}</td><td>${stockKg!=null?Math.round(stockKg):'<span class="mut">set weight</span>'}</td><td>${b.usedKg?Math.round(b.usedKg):'—'}</td><td>${avg?Math.round(avg):'—'}</td><td>${cover!=null?f1(cover)+' mo':'<span class="mut">—</span>'}</td><td><span class="tag ${st||'in'}">${stl}</span></td></tr>`;
+   return `<tr><td class="desc">${esc(t.label)}<div class="specline">${b.stockLines} stock line${b.stockLines===1?'':'s'}${pk!=null?` · ${pk} kg/${t.unit}`:''}${ck!=null?` · £${ck}/kg`:''}</div></td><td>${b.rolls||'—'}</td><td>${stockKg!=null?Math.round(stockKg):'<span class="mut">set weight</span>'}</td><td>${b.usedKg?Math.round(b.usedKg):'—'}</td><td>${usedCost?('£'+Math.round(usedCost).toLocaleString('en-GB')):'—'}</td><td>${avg?Math.round(avg):'—'}</td><td>${cover!=null?f1(cover)+' mo':'<span class="mut">—</span>'}</td><td><span class="tag ${st||'in'}">${stl}</span></td></tr>`;
  }).join('');
  const unStock=data.filter(o=>o.cat==='grp'&&!matchType(o.desc)).map(o=>o.desc);
  const unUse={}; lu.forEach(m=>{ if(!matchType(m.item))unUse[m.item]=1; });
  const un=(unStock.length||Object.keys(unUse).length)?`<div class="secttl">Not yet mapped to a type</div><div class="panel"><div class="pbody" style="max-height:none"><div class="dempty">${unStock.length?`<b>Stock:</b> ${unStock.map(esc).join(' · ')}<br><br>`:''}${Object.keys(unUse).length?`<b>Usage:</b> ${Object.keys(unUse).map(esc).join(' · ')}`:''}</div></div></div>`:'';
  wrap.innerHTML=`<div class="secttl">Materials by type <span class="scount">${MATTYPES.length} types</span></div>
   <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:16px">Every spelling is folded into one type — <b>900CSM</b>, <b>2x900csm</b> and <b>chopped strand mat 900</b> all count as 900g CSM matt. <b>Cover</b> (months of stock left at current usage) and reorder alerts switch on once you give me <b>kg per roll/drum</b>.</div>
-  <div class="tscroll"><table class="tbl"><thead><tr><th>Material type</th><th>In stock (${'rolls/drums'})</th><th>In stock (kg)</th><th>Used (kg)</th><th>Avg/mo (kg)</th><th>Cover</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>
+  <div class="tscroll"><table class="tbl"><thead><tr><th>Material type</th><th>In stock (${'rolls/drums'})</th><th>In stock (kg)</th><th>Used (kg)</th><th>Used £</th><th>Avg/mo (kg)</th><th>Cover</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>
   ${un}`;
 }
 let usageFilter=null; // {type:'hull'|'batch'|'mat', val}
@@ -805,6 +805,7 @@ function renderDash(){
  const mMax=Math.max(1,inMonth,outMonth);
  const badQty=data.filter(o=>{const r=parseFloat(o.recv),mm=parseFloat(o.rem);return !isNaN(r)&&!isNaN(mm)&&mm>r;});
  const luMoves=moves.filter(isLu);
+ const obVal=ORDERBOOK.boats.reduce((s,b)=>s+b.sell,0), wipVal=ORDERBOOK.boats.reduce((s,b)=>s+b.wip,0);
  const luKg=Math.round(luMoves.reduce((s,m)=>s+Math.abs(Number(m.qty)||0),0));
  const luHulls=new Set(luMoves.map(m=>m.ref).filter(Boolean)).size;
  const luByMat={}; luMoves.forEach(m=>{const k=m.item||'?';luByMat[k]=(luByMat[k]||0)+Math.abs(Number(m.qty)||0);});
@@ -816,6 +817,8 @@ function renderDash(){
  const erow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · ${expDisp(o)}</div></div><span class="tag ${stateOf(o)}">${stLabel(o)}</span></div>`;
  wrap.innerHTML=`<div class="secttl">Overview</div>
   <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(expired.length,'Expired',expired.length?'bad':'')}</div>
+  <div class="secttl">Business at a glance <span class="scount">July 2026</span></div>
+  <div class="kpis"><div class="kpi" style="cursor:pointer" onclick="setCur('value')"><div class="v">£${(STOCKVAL.total/1e6).toFixed(2)}M</div><div class="l">Total stock value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(obVal/1e6).toFixed(2)}M</div><div class="l">Order book</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(wipVal/1e6).toFixed(2)}M</div><div class="l">WIP value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">${ORDERBOOK.boats.length}</div><div class="l">Boats in build</div></div></div>
   <div class="mbars"><div class="mbar"><div class="mt">Delivered in — this month</div><div class="mv" style="color:#2E6B3E">${inMonth}</div><div class="mk" style="width:${Math.round(inMonth/mMax*100)}%;background:#2E6B3E"></div></div><div class="mbar"><div class="mt">Used out — this month</div><div class="mv" style="color:#B8341A">${outMonth}</div><div class="mk" style="width:${Math.round(outMonth/mMax*100)}%;background:#B8341A"></div></div>${fibreKg?`<div class="mbar"><div class="mt">Fibreglass laid up (kg)</div><div class="mv" style="color:#E34721">${fibreKg}</div><div class="mk" style="width:100%;background:#E34721"></div></div>`:''}</div>
   ${luMoves.length?`<div class="secttl">Materials laid up (from lay-up sheets)</div>
   <div class="mbars"><div class="mbar"><div class="mt">Lay-up lines logged</div><div class="mv">${luMoves.length}</div></div><div class="mbar"><div class="mt">Total laid up (kg)</div><div class="mv" style="color:#E34721">${luKg}</div></div><div class="mbar"><div class="mt">Hulls covered</div><div class="mv">${luHulls}</div></div></div>
