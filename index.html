@@ -372,6 +372,17 @@ function initMsal(){
 }
 async function signIn(){ try{ await pca.loginRedirect({scopes:SCOPES}); }catch(e){ setSync('err','Sign-in failed: '+(e.message||e)); } }
 function signOut(){ pca.logoutRedirect({account}); }
+async function makeShareLink(){
+ try{ setSync('busy','Creating shared-access link…');
+  await resolveBook();
+  let j;
+  try{ j=await gfetch(`/me/drive/root:/${fileSeg()}:/createLink`,{method:'POST',body:JSON.stringify({type:'edit',scope:'organization'})}); }
+  catch(e){ j=await gfetch(`/me/drive/root:/${fileSeg()}:/createLink`,{method:'POST',body:JSON.stringify({type:'edit',scope:'anonymous'})}); }
+  const url=j&&j.link&&j.link.webUrl;
+  if(url){ setSync('ok','Share link ready — copy it and send to finish setup'); window.prompt('✅ Shared-access link created.\n\nCopy this whole link and send it to finish multi-user setup (everyone will then see the same data):', url); }
+  else setSync('err','No link was returned — try sharing the file manually instead.');
+ }catch(e){ setSync('err','Could not create link: '+(e.message||e)); }
+}
 async function getToken(){
  try{ const r=await pca.acquireTokenSilent({scopes:SCOPES,account}); return r.accessToken; }
  catch(e){ await pca.acquireTokenRedirect({scopes:SCOPES,account}); throw e; }
@@ -810,7 +821,7 @@ async function runMigrations(){
 }
 /* ---------- boot ---------- */
 function showApp(){ document.getElementById('gate').classList.add('hide'); document.getElementById('app').classList.remove('hide');
- document.getElementById('acct').innerHTML=account?`<span>${account.username||account.name||''}</span> <button class="mini" onclick="signOut()">Sign out</button>`:'';
+ document.getElementById('acct').innerHTML=account?`<span>${account.username||account.name||''}</span> ${(CONFIG.shareUrl||'').trim()?'':'<button class="mini" onclick="makeShareLink()">Set up sharing</button>'} <button class="mini" onclick="signOut()">Sign out</button>`:'';
  cur=mqDesktop.matches?'dash':'grp'; render(); }
 function showGate(){ document.getElementById('app').classList.add('hide'); document.getElementById('gate').classList.remove('hide'); }
 document.getElementById('f_cat').innerHTML=CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join('');
