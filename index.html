@@ -289,6 +289,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
   <div id="scanProg" class="hide"><p class="impp" id="scanProgTxt">Reading…</p></div>
   <div id="scanStep2" class="hide">
     <div class="impinfo" id="scanInfo"></div>
+    <label class="fld"><span class="k">Record these lines as</span><select id="scanMode" class="fsel"><option value="Usage">🔧 Usage — taken from stock (stock out)</option><option value="Delivery">📥 Delivery — added to stock (stock in)</option></select></label>
     <div id="scanRows"></div>
     <button class="save" id="scanGo" onclick="scanAdd()">Add to stock</button>
     <button class="del" onclick="scanClose()" style="color:#555;border-color:var(--line)">Cancel</button>
@@ -818,12 +819,15 @@ function buildScanReview(){
    <button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button>
  </div>`).join('') : '<div class="dempty">No lines could be read. Try a clearer, straight-on photo, or add items manually.</div>';
 }
-function scanAdd(){ const rows=[...document.querySelectorAll('.scanrow')]; let n=0;
+function scanAdd(){ const mode=(document.getElementById('scanMode')||{}).value||'Usage'; const rows=[...document.querySelectorAll('.scanrow')]; let n=0;
  rows.forEach(el=>{ const desc=el.querySelector('.s_desc').value.trim(); const qty=el.querySelector('.s_qty').value.trim(); const cat=el.querySelector('.s_cat').value; const match=el.querySelector('.s_match').value;
    if(!desc)return; const q=parseFloat(qty)||0;
-   if(match){ const o=data.find(x=>x.rowId===match); if(o){ const nb=(parseFloat(o.rem)||0)+q; commit({op:'delta',rowId:match,dRem:q,dRecv:q}); commit({op:'move',mv:{id:uuid(),date:new Date().toISOString().slice(0,10),type:'Delivery',itemRowId:match,item:o.desc,cat:o.cat,qty:q,ref:'scanned note',person:'',note:'',balance:nb}}); n++; } }
+   if(match){ const o=data.find(x=>x.rowId===match); if(o){
+     if(mode==='Usage'){ let nb=(parseFloat(o.rem)||0)-q; if(nb<0)nb=0; commit({op:'delta',rowId:match,dRem:-q}); commit({op:'move',mv:{id:uuid(),date:new Date().toISOString().slice(0,10),type:'Usage',itemRowId:match,item:o.desc,cat:o.cat,qty:-q,ref:'scanned sheet',person:'',note:'',balance:nb}}); }
+     else { const nb=(parseFloat(o.rem)||0)+q; commit({op:'delta',rowId:match,dRem:q,dRecv:q}); commit({op:'move',mv:{id:uuid(),date:new Date().toISOString().slice(0,10),type:'Delivery',itemRowId:match,item:o.desc,cat:o.cat,qty:q,ref:'scanned sheet',person:'',note:'',balance:nb}}); }
+     n++; } }
    else { commit({op:'add',obj:{rowId:uuid(),index:null,cat:cat,desc:desc,rem:qty,recv:qty,item:'',batch:'',mfd:'',expiry:'',loc:'',cond:'',spec:''}}); n++; } });
- scanClose(); setSync(navigator.onLine?'busy':'err','Added '+n+' from note'+(navigator.onLine?'':' — will sync'));
+ scanClose(); setSync(navigator.onLine?'busy':'err',mode+' recorded from sheet ('+n+')'+(navigator.onLine?'':' — will sync'));
 }
 
 /* ---------- actions menu ---------- */
