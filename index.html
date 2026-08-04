@@ -41,6 +41,12 @@ input,select,button{font-family:inherit}
 .addbtn:active{filter:brightness(.93)}
 .impbtn{flex:none;border:1px solid var(--blk);background:#fff;color:var(--blk);border-radius:10px;padding:12px 16px;font-family:var(--fh);font-size:14px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;white-space:nowrap}
 .impbtn:active{background:var(--mist)}
+.actwrap{position:relative;flex:none}
+.actmenu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);min-width:252px;padding:6px}
+.actmenu button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:13px 12px;border-radius:9px;font-size:15px;cursor:pointer;color:var(--blk);white-space:nowrap}
+.actmenu button:hover{background:var(--mist)}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:62px;height:62px;border-radius:50%;background:var(--org);color:#fff;border:0;font-size:32px;line-height:60px;box-shadow:0 6px 20px rgba(227,71,33,.5);cursor:pointer;z-index:36;display:none}
+.fab:active{filter:brightness(.93)}
 .sheet.imp{max-height:92vh}
 @media(min-width:900px){.sheet.imp{width:640px}}
 .impp{color:#6B6B65;font-size:14px;line-height:1.5;margin:2px 0 14px}
@@ -125,8 +131,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
   .bar{flex-wrap:wrap}
   .mobilepick{display:block;width:100%}
   .srch{width:100%;flex:1 1 100%}
-  .addbtn{width:100%;order:-1;padding:15px}
-  .impbtn{width:100%}
+  .addbtn{display:none}
+  .actwrap{width:100%}
+  .actwrap .impbtn{width:100%;padding:14px}
+  .actmenu{left:0;right:0;min-width:0}
+  .fab{display:block}
 }
 @media(min-width:900px){ .mobilepick{display:none!important} }
 
@@ -174,17 +183,23 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
 </div>
 
 <div id="app" class="hide">
+ <button class="fab" onclick="openAdd()" title="Add item" aria-label="Add item">＋</button>
  <div class="shell">
   <aside class="side" id="side"></aside>
   <main class="main">
    <div class="bar">
      <button class="addbtn" onclick="openAdd()">+ Add item</button>
-     <button class="impbtn" onclick="openImport()">⬆ Import</button>
-     <button class="impbtn" onclick="openMovement('Delivery')">📥 Delivery</button>
-     <button class="impbtn" onclick="openMovement('Usage')">🔧 Usage</button>
-     <button class="impbtn" onclick="scanOpen()">📄 Scan note</button>
+     <div class="actwrap">
+       <button class="impbtn" onclick="toggleActions(event)">☰ Actions</button>
+       <div class="actmenu hide" id="actMenu">
+         <button onclick="closeActions();openMovement('Delivery')">📥 Log delivery (stock in)</button>
+         <button onclick="closeActions();openMovement('Usage')">🔧 Record usage (stock out)</button>
+         <button onclick="closeActions();scanOpen()">📄 Scan a delivery note</button>
+         <button onclick="closeActions();openImport()">⬆ Import a spreadsheet</button>
+       </div>
+     </div>
      <select class="sel mobilepick" id="catSel" onchange="setCur(this.value)"></select>
-     <input class="srch" id="q" placeholder="Search stock…" oninput="render()">
+     <input class="srch" id="q" placeholder="🔍  Search stock…" oninput="render()">
    </div>
    <div class="sync" id="sync"><span class="dot"></span><span id="syncText">Ready</span></div>
    <div class="wrap" id="list"></div>
@@ -810,6 +825,11 @@ function scanAdd(){ const rows=[...document.querySelectorAll('.scanrow')]; let n
    else { commit({op:'add',obj:{rowId:uuid(),index:null,cat:cat,desc:desc,rem:qty,recv:qty,item:'',batch:'',mfd:'',expiry:'',loc:'',cond:'',spec:''}}); n++; } });
  scanClose(); setSync(navigator.onLine?'busy':'err','Added '+n+' from note'+(navigator.onLine?'':' — will sync'));
 }
+
+/* ---------- actions menu ---------- */
+function toggleActions(e){ if(e)e.stopPropagation(); const m=document.getElementById('actMenu'); if(m)m.classList.toggle('hide'); }
+function closeActions(){ const m=document.getElementById('actMenu'); if(m)m.classList.add('hide'); }
+document.addEventListener('click',()=>closeActions());
 
 /* ---------- one-time data migrations ---------- */
 const RECLASSIFY={'87f6ef20-734c-4caa-bbe6-6a5aa952057a':'chem','56a54b9a-3ed6-4b17-94b4-0ef0a4e09877':'chem','e8e1e7df-f29b-45e9-acc6-75cb09d88e4d':'chem','61fae483-124d-4df1-a878-cdafb6832931':'chem','c58a1cb1-748b-4736-8a52-597378af8a63':'chem'};
