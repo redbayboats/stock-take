@@ -671,7 +671,7 @@ const STOCKVAL={date:'July 2026',total:1936991,areas:[
  {n:'Tubing / Tube stock',v:31216},{n:'Window & Wood',v:27803},{n:'GRP stores',v:27436},{n:'Stainless Steel',v:18964},
  {n:'16m Top Store & cable',v:18283},{n:'Upstairs Store & Fabric',v:15775},{n:'Consumables / PPE',v:12760},
  {n:'Yamaha Stores',v:12365},{n:'Baseline / Brass',v:10500},{n:'Shop Chandlery / Clothing',v:6000},{n:'Mechanic Store (Barrus)',v:5260}
-]};
+],trend:[[2017,1067625],[2018,1449524],[2019,1351368],[2020,1339144],[2021,1722102],[2022,1252236],[2023,2073603],[2024,1953713],[2025,1877899],[2026,1936991]]};
 const ORDERBOOK={date:'July 2026',boats:[
  {c:'Mid Ireland Adventure',size:'1050',eng:'8LV-370',pc:0.45,sell:198235,wip:89206},
  {c:'Isle of Man Diving Club',size:'1250',eng:"Twin 550's",pc:0.10,sell:438545,wip:43854},
@@ -689,12 +689,15 @@ const gbpF=n=>'£'+Math.round(n).toLocaleString('en-GB');
 function renderValue(){
  const wrap=document.getElementById('list');
  const A=STOCKVAL.areas.slice().sort((a,b)=>b.v-a.v); const max=Math.max(...A.map(a=>a.v));
+ const tmax=Math.max(...STOCKVAL.trend.map(t=>t[1]));
  const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const ob=ORDERBOOK.boats, obVal=ob.reduce((s,b)=>s+b.sell,0), wipVal=ob.reduce((s,b)=>s+b.wip,0);
  wrap.innerHTML=`<div class="secttl">Stock value <span class="scount">${STOCKVAL.date} valuation</span></div>
   <div class="kpis">${kpi(gbpF(STOCKVAL.total),'Total stock value')}${kpi(gbpF(obVal),'Order book')}${kpi(gbpF(wipVal),'WIP value')}${kpi(ob.length,'Boats in build')}</div>
   <div class="secttl">Value by area</div>
   <div class="barchart">${A.map(a=>`<div style="display:flex;align-items:center;gap:12px;padding:6px 0"><div style="width:210px;flex:none;font-size:13.5px">${esc(a.n)}</div><div style="flex:1;background:var(--mist);border-radius:6px;height:20px;overflow:hidden;min-width:40px"><div style="width:${Math.round(a.v/max*100)}%;height:100%;background:#E34721;border-radius:6px"></div></div><div style="width:96px;flex:none;text-align:right;font-family:var(--fh);font-size:15px">${gbpF(a.v)}</div></div>`).join('')}</div>
+  <div class="secttl">Stock value — 10‑year trend</div>
+  <div class="barchart" style="display:flex;align-items:flex-end;gap:10px;height:210px;padding-top:26px">${STOCKVAL.trend.map(([y,v])=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%"><div style="font-family:var(--fh);font-size:11px;margin-bottom:3px">£${(v/1e6).toFixed(1)}M</div><div style="width:66%;background:${y===2026?'var(--org)':'#CFCDBF'};border-radius:4px 4px 0 0;height:${Math.round(v/tmax*100)}%"></div><div style="font-size:11px;margin-top:5px;color:#333">${y}</div></div>`).join('')}</div>
   <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13px;margin-top:16px">Source: <b>Stock Take ${STOCKVAL.date}</b> management valuation (point-in-time). Live operational counts are on the section pages.</div>`;
 }
 function renderOrderBook(){
