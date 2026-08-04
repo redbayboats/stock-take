@@ -241,7 +241,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
   <label class="fld"><span class="k">Section</span><select id="f_cat" class="fsel" onchange="onCatChange()"></select></label>
   <label class="fld"><span class="k">What is it? (description)</span><input id="f_desc" placeholder="e.g. Crystic 2.420PA (FR)"></label>
   <label class="fld qbig"><span class="k">Quantity in stock</span><input id="f_qty" inputmode="decimal" placeholder="0"></label>
-  <label class="fld"><span class="k">Location</span><input id="f_loc" placeholder="Shed / rack"></label>
+  <label class="fld"><span class="k">Location</span><select id="f_loc" class="fsel" onchange="onLocChange()"><option value="">— select —</option><option>Shed 1</option><option>Shed 2</option><option>Shed 3</option><option>Shed 4</option><option>Yellow container</option><option>Yard</option><option value="__other">Other… (type)</option></select><input id="f_loc_other" class="hide" style="margin-top:6px" placeholder="Type location"></label>
   <div id="propBlock" class="hide">
     <div class="two">
       <label class="fld"><span class="k">Make</span><input id="f_p_make" placeholder="e.g. Michigan"></label>
@@ -636,6 +636,10 @@ function setCur(v){ cur=v; const sel=document.getElementById('catSel'); if(sel)s
 
 /* ---------- add / edit sheet ---------- */
 const PROPF=['f_p_make','f_p_size','f_p_blades','f_p_hand','f_p_mat','f_p_bore'];
+const LOCS=['Shed 1','Shed 2','Shed 3','Shed 4','Yellow container','Yard'];
+function onLocChange(){ const s=document.getElementById('f_loc'),o=document.getElementById('f_loc_other'); const other=s.value==='__other'; o.classList.toggle('hide',!other); if(other)setTimeout(()=>o.focus(),40); }
+function setLoc(v){ const s=document.getElementById('f_loc'),o=document.getElementById('f_loc_other'); v=v||''; o.value=''; if(v===''){s.value='';}else if(LOCS.indexOf(v)>=0){s.value=v;}else{s.value='__other';o.value=v;} onLocChange(); }
+function locVal(){ const s=document.getElementById('f_loc'); return s.value==='__other'?val('f_loc_other').trim():s.value; }
 function onCatChange(){ const isProp=document.getElementById('f_cat').value==='prop';
  document.getElementById('propBlock').classList.toggle('hide',!isProp);
  const dr=document.getElementById('dateRow'); if(dr)dr.classList.toggle('hide',isProp);
@@ -651,12 +655,12 @@ function openAdd(){ editingRowId=null; document.getElementById('sheetTitle').tex
  ['f_desc','f_qty','f_loc','f_item','f_batch','f_mfd','f_expiry','f_cond','f_spec'].concat(PROPF).forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
  document.getElementById('f_cat').value=(CATS.some(c=>c.id===cur)?cur:'grp');
  document.getElementById('delBtn').classList.add('hide'); document.getElementById('moreWrap').classList.add('hide');
- onCatChange(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
+ setLoc(''); onCatChange(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
 function openEdit(rowId){ const o=data.find(x=>x.rowId===rowId); if(!o)return; editingRowId=rowId;
  document.getElementById('sheetTitle').textContent='Edit item';
  document.getElementById('f_cat').value=o.cat||'grp';
  document.getElementById('f_desc').value=o.desc||''; document.getElementById('f_qty').value=o.rem||'';
- document.getElementById('f_loc').value=o.loc||''; document.getElementById('f_item').value=o.item||'';
+ setLoc(o.loc||''); document.getElementById('f_item').value=o.item||'';
  document.getElementById('f_batch').value=o.batch||''; document.getElementById('f_mfd').value=o.mfd||''; document.getElementById('f_expiry').value=o.expiry||'';
  document.getElementById('f_cond').value=o.cond||''; document.getElementById('f_spec').value=o.spec||'';
  PROPF.forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
@@ -668,7 +672,7 @@ function closeSheet(){ document.getElementById('scrim').classList.remove('show')
 function saveSheet(){
  const desc=val('f_desc').trim(); if(!desc){ alert('Please enter a description.'); return; }
  const qty=val('f_qty').trim();
- const f={desc:desc,rem:qty,loc:val('f_loc').trim(),item:val('f_item').trim(),batch:val('f_batch').trim(),mfd:val('f_mfd'),expiry:val('f_expiry'),cond:val('f_cond'),spec:val('f_spec').trim(),cat:val('f_cat')};
+ const f={desc:desc,rem:qty,loc:locVal(),item:val('f_item').trim(),batch:val('f_batch').trim(),mfd:val('f_mfd'),expiry:val('f_expiry'),cond:val('f_cond'),spec:val('f_spec').trim(),cat:val('f_cat')};
  if(editingRowId===null){ commit({op:'add',obj:{rowId:uuid(),index:null,recv:qty,...f}}); }
  else { commit({op:'edit',rowId:editingRowId,fields:f}); }
  closeSheet();
@@ -787,7 +791,7 @@ const MOVE_HEADERS=['MoveId','Date','Type','ItemRowId','Item','Category','Qty','
 let moves=[], movesReady=false, curMoveType='Delivery';
 async function loadMoves(){
  try{ await resolveBook(); const j=await gfetch(`${bookBase()}/tables/${encodeURIComponent(MOVE_TABLE)}/rows?$top=500`);
-  moves=(j.value||[]).map(r=>{const v=r.values[0]||[];return {id:v[0],date:v[1],type:v[2],itemRowId:v[3],item:v[4],cat:v[5],qty:v[6],ref:v[7],person:v[8],note:v[9],balance:v[10]};}).reverse();
+  moves=(j.value||[]).map(r=>{const v=r.values[0]||[];return {id:v[0],date:v[1],type:v[2],itemRowId:v[3],item:v[4],cat:v[5],qty:v[6],ref:v[7],person:v[8],note:v[9],balance:v[10]};}).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   movesReady=true;
  }catch(e){ moves=[]; }
 }
