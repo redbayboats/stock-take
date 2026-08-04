@@ -122,6 +122,20 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
 .specline{font-weight:400;font-size:12px;color:#8A8A84;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#6B6B65;font-size:13.5px}
+.barchart{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px}
+.barrow{display:flex;align-items:center;gap:12px;padding:5px 0;cursor:pointer}
+.barrow:hover{opacity:.85}
+.blabel{width:172px;flex:none;font-size:13.5px}
+.blabel .mut{font-size:11px}
+.btrack{flex:1;background:var(--mist);border-radius:6px;height:22px;overflow:hidden;min-width:50px}
+.bfill{height:100%;border-radius:6px;min-width:3px}
+.bval{width:50px;flex:none;text-align:right;font-family:var(--fh);font-size:16px}
+.mbars{display:flex;gap:16px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:6px}
+.mbar{flex:1;min-width:180px}
+.mbar .mt{font-family:var(--fh);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#8A8A84}
+.mbar .mv{font-family:var(--fh);font-size:26px;line-height:1.1}
+.mbar .mk{height:8px;border-radius:4px;margin-top:6px}
+@media(max-width:560px){ .blabel{width:108px;font-size:12px} .bval{width:40px} }
 
 @media(max-width:899px){
   .side{display:none}
@@ -198,7 +212,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
          <button onclick="closeActions();scanOpen('Usage')">📄 Scan a usage sheet → out</button>
          <button onclick="closeActions();printSheet('timber')">🖨 Print — timber sign-out sheet</button>
          <button onclick="closeActions();printSheet('layup')">🖨 Print — fibreglass lay-up record</button>
-         <button onclick="closeActions();openImport()">⬆ Import a spreadsheet</button>
+         <button onclick="closeActions();luOpen()">🧵 Import a fibreglass lay-up sheet</button>
+         <button onclick="closeActions();openImport()">⬆ Import a stock spreadsheet</button>
        </div>
      </div>
      <select class="sel mobilepick" id="catSel" onchange="setCur(this.value)"></select>
@@ -281,6 +296,23 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:600px}
   <button class="save" id="mvSave" onclick="applyMovement()">Save</button>
 </div>
 
+<div class="scrim" id="luScrim" onclick="luClose()"></div>
+<div class="sheet imp" id="luSheet">
+  <div class="shh"><span class="t">Import fibreglass lay-up sheet</span><button class="x" onclick="luClose()">✕</button></div>
+  <div id="luStep1">
+    <p class="impp">Choose a hull's <b>Fibre.xlsx</b> lay-up sheet. The app reads each material, the <b>kg used</b> and the <b>batch number</b>, and logs them as <b>usage against that hull's HIN</b> — a traceability record. (It doesn't change container stock counts, because the sheet is measured in kg.)</p>
+    <input type="file" id="luFileInput" accept=".xlsx,.xls" onchange="luFile(this)" style="display:none">
+    <button class="save" onclick="document.getElementById('luFileInput').click()">Choose lay-up Excel…</button>
+  </div>
+  <div id="luProg" class="hide"><p class="impp" id="luProgTxt">Reading…</p></div>
+  <div id="luStep2" class="hide">
+    <div class="impinfo" id="luInfo"></div>
+    <div id="luRows"></div>
+    <button class="save" id="luGo" onclick="luAdd()">Log usage</button>
+    <button class="del" onclick="luClose()" style="color:#555;border-color:var(--line)">Cancel</button>
+  </div>
+</div>
+
 <div class="scrim" id="scanScrim" onclick="scanClose()"></div>
 <div class="sheet imp" id="scanSheet">
   <div class="shh"><span class="t">Scan / upload delivery note</span><button class="x" onclick="scanClose()">✕</button></div>
@@ -321,6 +353,7 @@ const CATS=[
 ];
 const NAME2ID={},ID2NAME={}; CATS.forEach(c=>{NAME2ID[c.n.toLowerCase()]=c.id;ID2NAME[c.id]=c.n});
 NAME2ID['fibreglass']='grp'; NAME2ID['fiberglass']='grp'; NAME2ID['fibreglassresin']='grp'; NAME2ID['chemical']='chem'; NAME2ID['chemicals']='chem';
+const SECT_COLOR={grp:'#E34721',chem:'#7A4EA8',tube:'#2E6B8A',timber:'#8A6D3B',hw:'#5B5B55',eng:'#2E6B3E',prop:'#B8791F',cons:'#9A9A94'};
 const COLS=['RowId','Category','Description','ItemNo','Batch','QtyReceived','QtyRemaining','DateManufactured','ExpiryDate','Location','Condition','Spec'];
 const COL2KEY={RowId:'rowId',Category:'catName',Description:'desc',ItemNo:'item',Batch:'batch',QtyReceived:'recv',QtyRemaining:'rem',DateManufactured:'mfd',ExpiryDate:'expiry',Location:'loc',Condition:'cond',Spec:'spec'};
 
@@ -563,15 +596,20 @@ function renderDash(){
  const exp=[...expired,...soon].sort((a,b)=>((days(a)==null?1e9:days(a))-(days(b)==null?1e9:days(b))));
  const bySec=CATS.map(c=>{const it=data.filter(o=>o.cat===c.id);return{c,n:it.length,u:it.reduce((s,o)=>s+(num(o.rem)||0),0)};});
  const ym=new Date().toISOString().slice(0,7);
- const inMonth=moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&Number(m.qty)>0?Number(m.qty):0),0);
- const outMonth=moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&Number(m.qty)<0?-Number(m.qty):0),0);
+ const isLu=m=>String(m.note||'').indexOf('lay-up')===0;
+ const inMonth=moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&Number(m.qty)>0&&!isLu(m)?Number(m.qty):0),0);
+ const outMonth=moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&Number(m.qty)<0&&!isLu(m)?-Number(m.qty):0),0);
+ const fibreKg=Math.round(moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&isLu(m)?Math.abs(Number(m.qty)):0),0));
+ const maxU=Math.max(1,...bySec.map(x=>x.u));
+ const mMax=Math.max(1,inMonth,outMonth);
  const badQty=data.filter(o=>{const r=parseFloat(o.recv),mm=parseFloat(o.rem);return !isNaN(r)&&!isNaN(mm)&&mm>r;});
  const hrow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]} · received ${esc(o.recv||'0')}, in stock ${esc(o.rem||'0')}</div></div><span class="tag low">check</span></div>`;
  const kpi=(v,l,cls)=>`<div class="kpi ${cls||''}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const rrow=(o,k)=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · Qty ${o.rem===''?'—':esc(o.rem)}</div></div><span class="tag ${k}">${k==='out'?'Out':'Low'}</span></div>`;
  const erow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · ${expDisp(o)}</div></div><span class="tag ${stateOf(o)}">${stLabel(o)}</span></div>`;
  wrap.innerHTML=`<div class="secttl">Overview</div>
-  <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(expired.length,'Expired',expired.length?'bad':'')}${kpi(soon.length,'Expiring ≤90d',soon.length?'warn':'')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(low.length,'Low (≤'+LOW_QTY+')',low.length?'warn':'')}${kpi(inMonth,'In this month')}${kpi(outMonth,'Used this month')}</div>
+  <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(expired.length,'Expired',expired.length?'bad':'')}${kpi(soon.length,'Expiring ≤90d',soon.length?'warn':'')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(low.length,'Low (≤'+LOW_QTY+')',low.length?'warn':'')}${kpi(inMonth,'In this month')}${kpi(outMonth,'Used this month')}${fibreKg?kpi(fibreKg,'Fibreglass kg (mth)'):''}</div>
+  <div class="mbars"><div class="mbar"><div class="mt">Delivered in — this month</div><div class="mv" style="color:#2E6B3E">${inMonth}</div><div class="mk" style="width:${Math.round(inMonth/mMax*100)}%;background:#2E6B3E"></div></div><div class="mbar"><div class="mt">Used out — this month</div><div class="mv" style="color:#B8341A">${outMonth}</div><div class="mk" style="width:${Math.round(outMonth/mMax*100)}%;background:#B8341A"></div></div>${fibreKg?`<div class="mbar"><div class="mt">Fibreglass laid up (kg)</div><div class="mv" style="color:#E34721">${fibreKg}</div><div class="mk" style="width:100%;background:#E34721"></div></div>`:''}</div>
   <div class="dcols">
    <div class="panel"><h3>Needs reordering <span class="cnt">${reorder.length}</span></h3><div class="pbody">${reorder.length?reorder.map(x=>rrow(x.o,x.k)).join(''):'<div class="dempty">Nothing out of stock or running low 👍</div>'}</div></div>
    <div class="panel"><h3>Expiring &amp; expired <span class="cnt">${exp.length}</span></h3><div class="pbody">${exp.length?exp.map(erow).join(''):'<div class="dempty">Nothing expired or expiring within 90 days 👍</div>'}</div></div>
@@ -580,7 +618,7 @@ function renderDash(){
   <div class="secttl">Recent movements</div>
   <div class="panel"><div class="pbody">${moves.length?moves.slice(0,15).map(mrow).join(''):'<div class="dempty">No deliveries or usage logged yet. Use the <b>Delivery</b> and <b>Usage</b> buttons.</div>'}</div></div>
   <div class="secttl">Stock by section</div>
-  <div class="tscroll"><table class="tbl"><thead><tr><th>Section</th><th>Lines</th><th>Total units</th></tr></thead><tbody>${bySec.map(x=>`<tr onclick="setCur('${x.c.id}')"><td class="desc">${x.c.n}</td><td>${x.n}</td><td>${x.u}</td></tr>`).join('')}<tr style="font-weight:700;background:#FBFBF9"><td class="desc">All sections</td><td>${data.length}</td><td>${units}</td></tr></tbody></table></div>`;
+  <div class="barchart">${bySec.map(x=>`<div class="barrow" onclick="setCur('${x.c.id}')"><div class="blabel">${x.c.n} <span class="mut">${x.n} line${x.n===1?'':'s'}</span></div><div class="btrack"><div class="bfill" style="width:${Math.round(x.u/maxU*100)}%;background:${SECT_COLOR[x.c.id]||'#888'}"></div></div><div class="bval">${x.u}</div></div>`).join('')}<div class="barrow" style="border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:700"><div class="blabel">All sections</div><div class="btrack" style="background:transparent"></div><div class="bval">${units}</div></div></div>`;
 }
 function setCur(v){ cur=v; const sel=document.getElementById('catSel'); if(sel)sel.value=v; render(); }
 
@@ -851,6 +889,36 @@ function scanAdd(){ const mode=(document.getElementById('scanMode')||{}).value||
 function toggleActions(e){ if(e)e.stopPropagation(); const m=document.getElementById('actMenu'); if(m)m.classList.toggle('hide'); }
 function closeActions(){ const m=document.getElementById('actMenu'); if(m)m.classList.add('hide'); }
 document.addEventListener('click',()=>closeActions());
+
+/* ---------- import a fibreglass lay-up Excel (logs usage vs HIN) ---------- */
+let luHin='', luRows=[];
+function luOpen(){ document.getElementById('luFileInput').value=''; document.getElementById('luStep1').classList.remove('hide'); document.getElementById('luProg').classList.add('hide'); document.getElementById('luStep2').classList.add('hide'); document.getElementById('luScrim').classList.add('show'); document.getElementById('luSheet').classList.add('show'); }
+function luClose(){ document.getElementById('luScrim').classList.remove('show'); document.getElementById('luSheet').classList.remove('show'); }
+function xlSerialToDate(v){ if(v==null||v==='')return''; if(typeof v==='number'){ const d=new Date(Math.round((v-25569)*86400000)); return isNaN(d)?'':d.toISOString().slice(0,10); } const s=String(v).trim(); const m=/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(s); if(m){let y=+m[3];if(y<100)y+=2000;return `${y}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`;} return s.slice(0,10); }
+function luParse(aoa){ luHin=''; luRows=[];
+ for(const r of aoa){ const a=String(r[0]||'').toLowerCase(); if(a.includes('hull identification')){ luHin=String(r[1]||'').trim(); break; } }
+ let hi=-1,cKg=2,cBatch=11,cDate=1,cPerson=10;
+ for(let i=0;i<aoa.length;i++){ const row=(aoa[i]||[]).map(x=>String(x||'').toLowerCase());
+   if(row.some(c=>c.includes('batch'))){ hi=i; const k=row.findIndex(c=>c.includes('kg')); if(k>=0)cKg=k; const b=row.findIndex(c=>c.includes('batch')); if(b>=0)cBatch=b; const d=row.findIndex(c=>c.trim()==='date'); if(d>=0)cDate=d; const p=row.findIndex(c=>c.includes('person')); if(p>=0)cPerson=p; break; } }
+ if(hi<0)hi=5;
+ for(let i=hi+1;i<aoa.length;i++){ const r=aoa[i]||[]; const name=String(r[0]||'').trim(); const kg=parseFloat(r[cKg]);
+   if(name && !isNaN(kg) && kg>0){ luRows.push({material:name, kg:Math.round(kg*100)/100, batch:String(r[cBatch]||'').trim(), person:String(r[cPerson]||'').trim(), date:xlSerialToDate(r[cDate])}); } } }
+async function luFile(input){ const f=input.files&&input.files[0]; if(!f)return;
+ document.getElementById('luStep1').classList.add('hide'); document.getElementById('luProg').classList.remove('hide'); document.getElementById('luProgTxt').textContent='Reading…';
+ try{ const X=await loadXLSX(); const buf=await f.arrayBuffer(); const wb=X.read(buf,{type:'array',cellDates:false}); const ws=wb.Sheets[wb.SheetNames[0]];
+  const aoa=X.utils.sheet_to_json(ws,{header:1,raw:true,defval:''}); luParse(aoa); luReview();
+  document.getElementById('luProg').classList.add('hide'); document.getElementById('luStep2').classList.remove('hide');
+ }catch(e){ document.getElementById('luProgTxt').textContent='Could not read that file: '+e.message; } }
+function luReview(){
+ document.getElementById('luInfo').innerHTML = luHin? ('Hull: <b>'+esc(luHin)+'</b> — '+luRows.length+' material line'+(luRows.length===1?'':'s')+' of usage. Check and log.') : (luRows.length+' lines found (couldn\'t read the HIN — add it below or log anyway).');
+ document.getElementById('luRows').innerHTML = luRows.length? luRows.map(r=>`<div class="scanrow" data-date="${esc(r.date)}" data-person="${esc(r.person)}"><div class="two"><label class="fld"><span class="k">Material</span><input class="lu_mat" value="${esc(r.material)}"></label><label class="fld" style="flex:0 0 92px"><span class="k">kg used</span><input class="lu_kg" inputmode="decimal" value="${esc(r.kg)}"></label></div><label class="fld"><span class="k">Batch no.</span><input class="lu_batch" value="${esc(r.batch)}"></label><button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button></div>`).join('') : '<div class="dempty">No material lines found in that sheet.</div>';
+}
+function luAdd(){ const hin=luHin; const rows=[...document.querySelectorAll('#luRows .scanrow')]; let n=0;
+ rows.forEach(el=>{ const mat=el.querySelector('.lu_mat').value.trim(); const kg=parseFloat(el.querySelector('.lu_kg').value)||0; const batch=el.querySelector('.lu_batch').value.trim(); const date=el.getAttribute('data-date')||''; const person=el.getAttribute('data-person')||'';
+   if(!mat||kg<=0)return;
+   commit({op:'move',mv:{id:uuid(),date:date||new Date().toISOString().slice(0,10),type:'Usage',itemRowId:'',item:mat,cat:'grp',qty:-kg,ref:hin,person:person,note:'lay-up (kg)'+(batch?' · batch '+batch:''),balance:''}}); n++; });
+ luClose(); setSync(navigator.onLine?'busy':'err','Logged '+n+' lay-up usage line'+(n===1?'':'s')+(hin?' for '+hin:'')+(navigator.onLine?'':' — will sync'));
+}
 
 /* ---------- one-time data migrations ---------- */
 const RECLASSIFY={'87f6ef20-734c-4caa-bbe6-6a5aa952057a':'chem','56a54b9a-3ed6-4b17-94b4-0ef0a4e09877':'chem','e8e1e7df-f29b-45e9-acc6-75cb09d88e4d':'chem','61fae483-124d-4df1-a878-cdafb6832931':'chem','c58a1cb1-748b-4736-8a52-597378af8a63':'chem'};
