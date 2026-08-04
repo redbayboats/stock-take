@@ -131,6 +131,21 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 .cond{font-family:var(--fh);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--mist);color:#000000;white-space:nowrap}
 .batchlink{color:var(--org);font-weight:700;cursor:pointer;border-bottom:1px dotted var(--org)}
 .batchlink:hover{background:#FBEDE8}
+.yardmap{display:flex;flex-direction:column;gap:14px;margin-bottom:10px}
+.shedrow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:700px){.shedrow{grid-template-columns:repeat(2,1fr)}}
+.zcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;box-shadow:0 1px 2px rgba(20,20,20,.04);transition:transform .1s,border-color .1s;overflow:hidden}
+.zcard:hover{border-color:var(--org);transform:translateY(-1px)}
+.zcard.on{border-color:var(--org);box-shadow:0 0 0 2px var(--org) inset}
+.zcard .zn{font-family:var(--fh);text-transform:uppercase;font-size:16px;letter-spacing:.03em}
+.zcard .zsub{font-size:11px;color:#555;margin-top:2px;min-height:14px}
+.zcard .zbig{font-family:var(--fh);font-size:38px;line-height:1;margin-top:8px}
+.zcard .zu{font-size:12px;color:#333;margin-top:2px}
+.zcard .zbar{height:6px;background:var(--mist);border-radius:3px;margin-top:10px;overflow:hidden}
+.zcard .zfill{height:100%;background:var(--org);border-radius:3px}
+.zcard.yc{border-top:4px solid #E8B400}
+.zcard.yard{background:#F6FAF3}
+.zcard.other,.zcard.un{background:#FBFBF9}
 .specline{font-weight:400;font-size:12px;color:#000000;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#000000;font-size:13.5px}
@@ -551,7 +566,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function renderSide(){
  const side=document.getElementById('side'); if(!side)return;
  const total=data.length;
- let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><div class="sh">Sections</div>`;
+ let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><button class="snav ${cur==='store'?'on':''}" onclick="setCur('store')">🗺️ Storage map</button><div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
  h+=CATS.map(c=>`<button class="snav ${cur===c.id?'on':''}" onclick="setCur('${c.id}')">${c.n} <span class="cnt">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
  side.innerHTML=h;
@@ -591,15 +606,40 @@ function cardsFor(sec,q,showHead){
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+4){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+5){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
  if(cur==='usage'){ renderUsage(); return; }
  if(cur==='mats'){ renderMaterials(); return; }
+ if(cur==='store'){ renderStorage(); return; }
  const q=(val('q')||'').toLowerCase().trim();
  const secs=cur==='all'?CATS:CATS.filter(c=>c.id===cur);
  const wrap=document.getElementById('list');
  if(mqDesktop.matches){ wrap.innerHTML=secs.map(s=>tableFor(s,q)).join(''); }
  else{ wrap.innerHTML=`<div class="tap">Tap a line to edit · use − / + to change the count</div>`+secs.map(s=>cardsFor(s,q,cur==='all')).join(''); }
+}
+/* ---------- storage map ---------- */
+let locFilter=null;
+function setLocFilter(v){ locFilter=(locFilter===v?null:v); render(); }
+const SHED_NOTE={'Shed 1':'Store (being converted)','Shed 3':'Fibreglass shed','Shed 4':'Overhead cranes'};
+function renderStorage(){
+ const wrap=document.getElementById('list');
+ const ZONES=['Shed 1','Shed 2','Shed 3','Shed 4','Yellow container','Yard'];
+ const cnt={}; ZONES.forEach(z=>cnt[z]={n:0,u:0});
+ let other={n:0,names:{}}, none={n:0};
+ data.forEach(o=>{ const l=(o.loc||'').trim(); const u=num(o.rem)||0; if(!l){none.n++;} else if(cnt[l]){cnt[l].n++;cnt[l].u+=u;} else {other.n++;other.names[l]=1;} });
+ const maxN=Math.max(1,...ZONES.map(z=>cnt[z].n),other.n);
+ const card=(z,cls)=>{ const c=cnt[z]||{n:0,u:0}; const sub=SHED_NOTE[z]||''; return `<div class="zcard ${cls||''} ${locFilter===z?'on':''}" onclick="setLocFilter('${z}')"><div class="zn">${z}</div><div class="zsub">${sub}</div><div class="zbig">${c.n}</div><div class="zu">item${c.n===1?'':'s'} · ${Math.round(c.u)} units</div><div class="zbar"><div class="zfill" style="width:${Math.round(c.n/maxN*100)}%"></div></div></div>`; };
+ let shown=[];
+ if(locFilter==='__none') shown=data.filter(o=>!(o.loc||'').trim());
+ else if(locFilter==='__other') shown=data.filter(o=>{const l=(o.loc||'').trim(); return l&&ZONES.indexOf(l)<0;});
+ else if(locFilter) shown=data.filter(o=>(o.loc||'').trim()===locFilter);
+ const drow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]||''} · Qty ${o.rem===''?'—':esc(o.rem)}${o.batch?' · batch '+esc(o.batch):''}</div></div>${o.cond?`<span class="cond">${esc(o.cond)}</span>`:''}</div>`;
+ const extra=`${other.n?`<div class="zcard other ${locFilter==='__other'?'on':''}" onclick="setLocFilter('__other')"><div class="zn">Other</div><div class="zsub">${Object.keys(other.names).slice(0,3).map(esc).join(', ')}</div><div class="zbig">${other.n}</div><div class="zu">other locations</div></div>`:''}${none.n?`<div class="zcard un ${locFilter==='__none'?'on':''}" onclick="setLocFilter('__none')"><div class="zn">No location</div><div class="zsub">needs assigning</div><div class="zbig">${none.n}</div><div class="zu">tap to assign</div></div>`:''}`;
+ const flabel=locFilter==='__none'?'No location set':locFilter==='__other'?'Other locations':locFilter;
+ wrap.innerHTML=`<div class="secttl">Where stock is stored</div>
+  <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:16px">Click a shed to see what's stored there. To move an item, open it and change its <b>Location</b>.${none.n?` <b>${none.n}</b> item${none.n===1?'':'s'} still need a location.`:''}</div>
+  <div class="yardmap"><div class="shedrow">${card('Shed 1')}${card('Shed 2')}${card('Shed 3')}${card('Shed 4')}</div><div class="shedrow">${card('Yellow container','yc')}${card('Yard','yard')}${extra}</div></div>
+  ${locFilter?`<div class="secttl">${esc(flabel)} <span class="scount">${shown.length} item${shown.length===1?'':'s'}</span></div><div class="panel"><div class="pbody" style="max-height:none">${shown.length?shown.map(drow).join(''):'<div class="dempty">Nothing stored here yet.</div>'}</div></div>`:''}`;
 }
 /* ---------- material TYPE catalogue (folds every spelling into one type) ---------- */
 const MATTYPES=[
