@@ -615,6 +615,12 @@ function renderDash(){
  const maxU=Math.max(1,...bySec.map(x=>x.u));
  const mMax=Math.max(1,inMonth,outMonth);
  const badQty=data.filter(o=>{const r=parseFloat(o.recv),mm=parseFloat(o.rem);return !isNaN(r)&&!isNaN(mm)&&mm>r;});
+ const luMoves=moves.filter(isLu);
+ const luKg=Math.round(luMoves.reduce((s,m)=>s+Math.abs(Number(m.qty)||0),0));
+ const luHulls=new Set(luMoves.map(m=>m.ref).filter(Boolean)).size;
+ const luByMat={}; luMoves.forEach(m=>{const k=m.item||'?';luByMat[k]=(luByMat[k]||0)+Math.abs(Number(m.qty)||0);});
+ const luTop=Object.keys(luByMat).map(k=>({k,v:luByMat[k]})).sort((a,b)=>b.v-a.v).slice(0,6);
+ const luMax=Math.max(1,...luTop.map(x=>x.v));
  const hrow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]} · received ${esc(o.recv||'0')}, in stock ${esc(o.rem||'0')}</div></div><span class="tag low">check</span></div>`;
  const kpi=(v,l,cls)=>`<div class="kpi ${cls||''}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const rrow=(o,k)=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · Qty ${o.rem===''?'—':esc(o.rem)}</div></div><span class="tag ${k}">${k==='out'?'Out':'Low'}</span></div>`;
@@ -622,6 +628,12 @@ function renderDash(){
  wrap.innerHTML=`<div class="secttl">Overview</div>
   <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(expired.length,'Expired',expired.length?'bad':'')}</div>
   <div class="mbars"><div class="mbar"><div class="mt">Delivered in — this month</div><div class="mv" style="color:#2E6B3E">${inMonth}</div><div class="mk" style="width:${Math.round(inMonth/mMax*100)}%;background:#2E6B3E"></div></div><div class="mbar"><div class="mt">Used out — this month</div><div class="mv" style="color:#B8341A">${outMonth}</div><div class="mk" style="width:${Math.round(outMonth/mMax*100)}%;background:#B8341A"></div></div>${fibreKg?`<div class="mbar"><div class="mt">Fibreglass laid up (kg)</div><div class="mv" style="color:#E34721">${fibreKg}</div><div class="mk" style="width:100%;background:#E34721"></div></div>`:''}</div>
+  ${luMoves.length?`<div class="secttl">Materials laid up (from lay-up sheets)</div>
+  <div class="mbars"><div class="mbar"><div class="mt">Lay-up lines logged</div><div class="mv">${luMoves.length}</div></div><div class="mbar"><div class="mt">Total laid up (kg)</div><div class="mv" style="color:#E34721">${luKg}</div></div><div class="mbar"><div class="mt">Hulls covered</div><div class="mv">${luHulls}</div></div></div>
+  <div class="dcols">
+   <div class="panel"><h3>Top materials used <span class="cnt">kg</span></h3><div class="pbody">${luTop.map(x=>`<div class="drow"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/luMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg</span></div>`).join('')}</div></div>
+   <div class="panel"><h3>Recent lay-ups <span class="cnt">${luMoves.length}</span></h3><div class="pbody">${luMoves.slice(0,12).map(m=>`<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${Math.abs(Number(m.qty)||0)} kg</div><div class="s">${esc(m.date||'')}${m.ref?' · '+esc(m.ref):''}${m.person?' · '+esc(m.person):''}</div></div></div>`).join('')}</div></div>
+  </div>`:''}
   <div class="dcols">
    <div class="panel"><h3>Needs reordering <span class="cnt">${reorder.length}</span></h3><div class="pbody">${reorder.length?reorder.map(x=>rrow(x.o,x.k)).join(''):'<div class="dempty">Nothing out of stock or running low 👍</div>'}</div></div>
    <div class="panel"><h3>Expiring &amp; expired <span class="cnt">${exp.length}</span></h3><div class="pbody">${exp.length?exp.map(erow).join(''):'<div class="dempty">Nothing expired or expiring within 90 days 👍</div>'}</div></div>
