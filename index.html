@@ -129,6 +129,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 .tag.out{background:#FBE4DC;color:#B8341A}.tag.low{background:#FBF0DA;color:#8a6410}
 .tag.in{background:#DBEEE0;color:#2E6B3E}
 .cond{font-family:var(--fh);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--mist);color:#000000;white-space:nowrap}
+.batchlink{color:var(--org);font-weight:700;cursor:pointer;border-bottom:1px dotted var(--org)}
+.batchlink:hover{background:#FBEDE8}
 .specline{font-weight:400;font-size:12px;color:#000000;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#000000;font-size:13.5px}
@@ -549,7 +551,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function renderSide(){
  const side=document.getElementById('side'); if(!side)return;
  const total=data.length;
- let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><div class="sh">Sections</div>`;
+ let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
  h+=CATS.map(c=>`<button class="snav ${cur===c.id?'on':''}" onclick="setCur('${c.id}')">${c.n} <span class="cnt">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
  side.innerHTML=h;
@@ -589,13 +591,57 @@ function cardsFor(sec,q,showHead){
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+2){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+3){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
+ if(cur==='usage'){ renderUsage(); return; }
  const q=(val('q')||'').toLowerCase().trim();
  const secs=cur==='all'?CATS:CATS.filter(c=>c.id===cur);
  const wrap=document.getElementById('list');
  if(mqDesktop.matches){ wrap.innerHTML=secs.map(s=>tableFor(s,q)).join(''); }
  else{ wrap.innerHTML=`<div class="tap">Tap a line to edit · use − / + to change the count</div>`+secs.map(s=>cardsFor(s,q,cur==='all')).join(''); }
+}
+let usageFilter=null; // {type:'hull'|'batch'|'mat', val}
+function setUsageFilter(type,val){ if(usageFilter&&usageFilter.type===type&&usageFilter.val===val){usageFilter=null;}else{usageFilter={type,val};} render(); }
+function clearUsageFilter(){ usageFilter=null; render(); }
+function renderUsage(){
+ const wrap=document.getElementById('list');
+ const isLu=m=>String(m.note||'').indexOf('lay-up')===0;
+ const kg=m=>Math.abs(Number(m.qty)||0);
+ const bat=m=>{const x=String(m.note||'').split('batch ')[1]; return x?x.trim():'';};
+ const lu=moves.filter(isLu);
+ if(!lu.length){ wrap.innerHTML=`<div class="secttl">Usage — materials laid up</div><div class="panel"><div class="dempty">No usage logged yet. Use <b>Actions → Import a fibreglass lay-up sheet</b>, or <b>Actions → Usage</b> to record stock going out.</div></div>`; return; }
+ const ym=new Date().toISOString().slice(0,7);
+ const totKg=Math.round(lu.reduce((s,m)=>s+kg(m),0));
+ const monthKg=Math.round(lu.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym?kg(m):0),0));
+ const hulls={}; lu.forEach(m=>{const k=m.ref||'—'; (hulls[k]=hulls[k]||{kg:0,n:0}); hulls[k].kg+=kg(m); hulls[k].n++;});
+ const hullKeys=Object.keys(hulls).sort((a,b)=>hulls[b].kg-hulls[a].kg);
+ const byMat={}; lu.forEach(m=>{const k=m.item||'?'; byMat[k]=(byMat[k]||0)+kg(m);});
+ const matList=Object.keys(byMat).map(k=>({k,v:byMat[k]})).sort((a,b)=>b.v-a.v);
+ const matMax=Math.max(1,...matList.map(x=>x.v));
+ const batches={}; lu.forEach(m=>{const b=bat(m); if(!b)return; (batches[b]=batches[b]||{kg:0,n:0,hulls:new Set(),mats:new Set()}); batches[b].kg+=kg(m); batches[b].n++; batches[b].hulls.add(m.ref||'—'); batches[b].mats.add(m.item||'?');});
+ const batchKeys=Object.keys(batches).sort((a,b)=>batches[b].kg-batches[a].kg);
+ const stockByBatch={}; data.forEach(o=>{ if(o.batch){ String(o.batch).split(/[\s,;/]+/).forEach(bb=>{ bb=bb.trim(); if(bb)stockByBatch[bb]=o; }); } });
+ let shown=lu.slice();
+ if(usageFilter){ if(usageFilter.type==='hull')shown=lu.filter(m=>(m.ref||'—')===usageFilter.val);
+  else if(usageFilter.type==='batch')shown=lu.filter(m=>bat(m)===usageFilter.val);
+  else if(usageFilter.type==='mat')shown=lu.filter(m=>(m.item||'?')===usageFilter.val); }
+ const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+ const hrow=k=>`<div class="drow" onclick="setUsageFilter('hull','${esc(k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='hull'&&usageFilter.val===k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines</div></div><span class="cond">${Math.round(hulls[k].kg)} kg</span></div>`;
+ const mrow2=x=>`<div class="drow" onclick="setUsageFilter('mat','${esc(x.k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='mat'&&usageFilter.val===x.k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/matMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg</span></div>`;
+ const brow=b=>{const st=stockByBatch[b]; return `<div class="drow" onclick="setUsageFilter('batch','${esc(b)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='batch'&&usageFilter.val===b?'background:#FBF0DA':''}"><div class="m"><div class="t">batch ${esc(b)}${st?' <span class="cond">● in stock</span>':''}</div><div class="s">${batches[b].hulls.size} hull(s) · ${batches[b].n} lines · ${esc([...batches[b].mats].slice(0,3).join(', '))}</div></div><span class="cond">${Math.round(batches[b].kg)} kg</span></div>`;};
+ const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${kg(m)} kg</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
+ const flabel=usageFilter?(usageFilter.type==='hull'?'Hull '+usageFilter.val:usageFilter.type==='batch'?'Batch '+usageFilter.val:'Material '+usageFilter.val):'';
+ const shownKg=Math.round(shown.reduce((s,m)=>s+kg(m),0));
+ wrap.innerHTML=`<div class="secttl">Usage — materials laid up</div>
+  <div class="kpis">${kpi(lu.length,'Lay-up lines')}${kpi(totKg,'Total kg used')}${kpi(hullKeys.length,'Hulls')}${kpi(monthKg,'kg this month')}</div>
+  <div class="dcols">
+   <div class="panel"><h3>By hull (HIN) <span class="cnt">${hullKeys.length}</span></h3><div class="pbody">${hullKeys.map(hrow).join('')}</div></div>
+   <div class="panel"><h3>By material <span class="cnt">kg</span></h3><div class="pbody">${matList.map(mrow2).join('')}</div></div>
+  </div>
+  <div class="secttl">By batch — traceability <span class="scount">${batchKeys.length} batches</span></div>
+  <div class="panel"><div class="pbody">${batchKeys.map(brow).join('')}</div></div>
+  <div class="secttl">${flabel?`Lines for: <span style="color:var(--org)">${esc(flabel)}</span>`:'All lay-up lines'} <span class="scount">${shown.length} lines · ${shownKg} kg</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
+  <div class="panel"><div class="pbody" style="max-height:none">${shown.map(urow).join('')}</div></div>`;
 }
 function renderDash(){
  const wrap=document.getElementById('list');
