@@ -571,7 +571,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function renderSide(){
  const side=document.getElementById('side'); if(!side)return;
  const total=data.length;
- let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><button class="snav ${cur==='store'?'on':''}" onclick="setCur('store')">🗺️ Storage map</button><div class="sh">Sections</div>`;
+ let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='value'?'on':''}" onclick="setCur('value')">💷 Stock value</button><button class="snav ${cur==='orders'?'on':''}" onclick="setCur('orders')">🚤 Order book</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><button class="snav ${cur==='store'?'on':''}" onclick="setCur('store')">🗺️ Storage map</button><div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
  h+=CATS.map(c=>`<button class="snav ${cur===c.id?'on':''}" onclick="setCur('${c.id}')">${c.n} <span class="cnt">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
  side.innerHTML=h;
@@ -611,8 +611,10 @@ function cardsFor(sec,q,showHead){
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+5){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+7){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="value">Stock value</option><option value="orders">Order book</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
+ if(cur==='value'){ renderValue(); return; }
+ if(cur==='orders'){ renderOrderBook(); return; }
  if(cur==='usage'){ renderUsage(); return; }
  if(cur==='mats'){ renderMaterials(); return; }
  if(cur==='store'){ renderStorage(); return; }
@@ -660,6 +662,53 @@ const MATTYPES=[
 ];
 // kg per roll/drum — fill these when Joseph provides them; nulls show "set weight"
 const PACKKG={csm300:null,csm450:null,csm600:null,csm900:null,wr800:null,resin2420:25,r489pa:25,gelcoat:null,catalyst:null};
+// £ per kg — from "Stock Take July 2026" management valuation (Scott Bader pricing)
+const COSTKG={csm300:2.80,csm450:2.80,csm600:2.80,csm900:2.80,wr800:2.81,resin2420:3.46,r489pa:3.95,gelcoat:4.93,catalyst:null};
+function costOf(name){ const id=matchType(name); return (id&&COSTKG[id]!=null)?COSTKG[id]:0; }
+/* ---------- management valuation snapshot (Stock Take July 2026) ---------- */
+const STOCKVAL={date:'July 2026',total:1936991,areas:[
+ {n:'WIP (boats in build)',v:940704},{n:'Boats, Trailers & Engines',v:527815},{n:'Main Store (Connx)',v:282110},
+ {n:'Tubing / Tube stock',v:31216},{n:'Window & Wood',v:27803},{n:'GRP stores',v:27436},{n:'Stainless Steel',v:18964},
+ {n:'16m Top Store & cable',v:18283},{n:'Upstairs Store & Fabric',v:15775},{n:'Consumables / PPE',v:12760},
+ {n:'Yamaha Stores',v:12365},{n:'Baseline / Brass',v:10500},{n:'Shop Chandlery / Clothing',v:6000},{n:'Mechanic Store (Barrus)',v:5260}
+]};
+const ORDERBOOK={date:'July 2026',boats:[
+ {c:'Mid Ireland Adventure',size:'1050',eng:'8LV-370',pc:0.45,sell:198235,wip:89206},
+ {c:'Isle of Man Diving Club',size:'1250',eng:"Twin 550's",pc:0.10,sell:438545,wip:43854},
+ {c:'Padstow Harbour Comm.',size:'1150',eng:'Yanmar',pc:0.10,sell:513000,wip:51300},
+ {c:'Paul Gough',size:'650',eng:'DF200',pc:0.90,sell:60000,wip:54000},
+ {c:'Ian Beaton',size:'750',eng:'DF250',pc:0.83,sell:85400,wip:71167},
+ {c:'Irish Commercial Charter',size:'950',eng:"Twin DF200's",pc:0.70,sell:142000,wip:99400},
+ {c:"Gary's Boat (stock)",size:'1050',eng:'8LV-370',pc:0.75,sell:190000,wip:142500},
+ {c:'Stock 610',size:'610',eng:'—',pc:0.50,sell:48500,wip:24250},
+ {c:'Coastal Connections',size:'1150',eng:'2x 8LV-320',pc:0.50,sell:320000,wip:160000},
+ {c:'Steve Hawksworth',size:'750',eng:'DF300',pc:0.20,sell:124205,wip:24841},
+ {c:'Ostan Oilean Thorai',size:'1250',eng:"Twin 550's",pc:0.40,sell:450465,wip:180186}
+]};
+const gbpF=n=>'£'+Math.round(n).toLocaleString('en-GB');
+function renderValue(){
+ const wrap=document.getElementById('list');
+ const A=STOCKVAL.areas.slice().sort((a,b)=>b.v-a.v); const max=Math.max(...A.map(a=>a.v));
+ const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+ const ob=ORDERBOOK.boats, obVal=ob.reduce((s,b)=>s+b.sell,0), wipVal=ob.reduce((s,b)=>s+b.wip,0);
+ wrap.innerHTML=`<div class="secttl">Stock value <span class="scount">${STOCKVAL.date} valuation</span></div>
+  <div class="kpis">${kpi(gbpF(STOCKVAL.total),'Total stock value')}${kpi(gbpF(obVal),'Order book')}${kpi(gbpF(wipVal),'WIP value')}${kpi(ob.length,'Boats in build')}</div>
+  <div class="secttl">Value by area</div>
+  <div class="barchart">${A.map(a=>`<div style="display:flex;align-items:center;gap:12px;padding:6px 0"><div style="width:210px;flex:none;font-size:13.5px">${esc(a.n)}</div><div style="flex:1;background:var(--mist);border-radius:6px;height:20px;overflow:hidden;min-width:40px"><div style="width:${Math.round(a.v/max*100)}%;height:100%;background:#E34721;border-radius:6px"></div></div><div style="width:96px;flex:none;text-align:right;font-family:var(--fh);font-size:15px">${gbpF(a.v)}</div></div>`).join('')}</div>
+  <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13px;margin-top:16px">Source: <b>Stock Take ${STOCKVAL.date}</b> management valuation (point-in-time). Live operational counts are on the section pages.</div>`;
+}
+function renderOrderBook(){
+ const wrap=document.getElementById('list');
+ const ob=ORDERBOOK.boats.slice().sort((a,b)=>b.wip-a.wip);
+ const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+ const obVal=ob.reduce((s,b)=>s+b.sell,0), wipVal=ob.reduce((s,b)=>s+b.wip,0), avg=ob.reduce((s,b)=>s+b.pc,0)/ob.length;
+ const col=p=>p>=0.75?'#2E6B3E':p>=0.4?'#B8791F':'#E34721';
+ const row=b=>`<div class="drow"><div class="m"><div class="t">${esc(b.c)} <span class="cond">${esc(b.size)}</span></div><div class="s">${esc(b.eng)} · ${gbpF(b.sell)} selling · WIP ${gbpF(b.wip)}</div><div class="btrack" style="margin-top:7px;height:8px"><div class="bfill" style="width:${Math.round(b.pc*100)}%;background:${col(b.pc)};height:8px"></div></div></div><span class="cond" style="background:${col(b.pc)};color:#fff">${Math.round(b.pc*100)}%</span></div>`;
+ wrap.innerHTML=`<div class="secttl">Order book — boats in build <span class="scount">${ORDERBOOK.date}</span></div>
+  <div class="kpis">${kpi(ob.length,'Boats in build')}${kpi(gbpF(obVal),'Order book value')}${kpi(gbpF(wipVal),'WIP value')}${kpi(Math.round(avg*100)+'%','Avg completion')}</div>
+  <div class="panel"><div class="pbody" style="max-height:none">${ob.map(row).join('')}</div></div>
+  <div style="background:var(--mist);border-left:3px solid var(--org);padding:11px 13px;border-radius:0 8px 8px 0;font-size:13px;margin-top:14px">Source: <b>Stock Take ${ORDERBOOK.date}</b> WIP sheet. Bar colour = build progress (red→amber→green).</div>`;
+}
 function matchType(raw){ const s=String(raw||'').toLowerCase();
  const wr=/\bwr\b|woven/.test(s), csm=/csm|chopped strand|matt|(^|[^a-z])mat([^a-z]|$)|emulsion/.test(s);
  const num=(s.match(/300|450|600|800|900/)||[])[0];
@@ -703,11 +752,14 @@ function renderUsage(){
  const ym=new Date().toISOString().slice(0,7);
  const totKg=Math.round(lu.reduce((s,m)=>s+kg(m),0));
  const monthKg=Math.round(lu.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym?kg(m):0),0));
- const hulls={}; lu.forEach(m=>{const k=m.ref||'—'; (hulls[k]=hulls[k]||{kg:0,n:0}); hulls[k].kg+=kg(m); hulls[k].n++;});
+ const hulls={}; lu.forEach(m=>{const k=m.ref||'—'; (hulls[k]=hulls[k]||{kg:0,n:0,cost:0}); hulls[k].kg+=kg(m); hulls[k].cost+=kg(m)*costOf(m.item); hulls[k].n++;});
  const hullKeys=Object.keys(hulls).sort((a,b)=>hulls[b].kg-hulls[a].kg);
  const byMat={}; lu.forEach(m=>{const k=m.item||'?'; byMat[k]=(byMat[k]||0)+kg(m);});
  const matList=Object.keys(byMat).map(k=>({k,v:byMat[k]})).sort((a,b)=>b.v-a.v);
  const matMax=Math.max(1,...matList.map(x=>x.v));
+ const matCost={}; lu.forEach(m=>{const k=m.item||'?'; matCost[k]=(matCost[k]||0)+kg(m)*costOf(m.item);});
+ const totCost=lu.reduce((s,m)=>s+kg(m)*costOf(m.item),0);
+ const gbp=n=>'£'+Math.round(n).toLocaleString('en-GB');
  const batches={}; lu.forEach(m=>{const b=bat(m); if(!b)return; (batches[b]=batches[b]||{kg:0,n:0,hulls:new Set(),mats:new Set()}); batches[b].kg+=kg(m); batches[b].n++; batches[b].hulls.add(m.ref||'—'); batches[b].mats.add(m.item||'?');});
  const batchKeys=Object.keys(batches).sort((a,b)=>batches[b].kg-batches[a].kg);
  const stockByBatch={}; data.forEach(o=>{ if(o.batch){ String(o.batch).split(/[\s,;/]+/).forEach(bb=>{ bb=bb.trim(); if(bb)stockByBatch[bb]=o; }); } });
@@ -716,15 +768,15 @@ function renderUsage(){
   else if(usageFilter.type==='batch')shown=lu.filter(m=>bat(m)===usageFilter.val);
   else if(usageFilter.type==='mat')shown=lu.filter(m=>(m.item||'?')===usageFilter.val); }
  const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
- const hrow=k=>`<div class="drow" onclick="setUsageFilter('hull','${esc(k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='hull'&&usageFilter.val===k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines</div></div><span class="cond">${Math.round(hulls[k].kg)} kg</span></div>`;
- const mrow2=x=>`<div class="drow" onclick="setUsageFilter('mat','${esc(x.k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='mat'&&usageFilter.val===x.k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/matMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg</span></div>`;
+ const hrow=k=>`<div class="drow" onclick="setUsageFilter('hull','${esc(k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='hull'&&usageFilter.val===k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines · ${gbp(hulls[k].cost)}</div></div><span class="cond">${Math.round(hulls[k].kg)} kg</span></div>`;
+ const mrow2=x=>`<div class="drow" onclick="setUsageFilter('mat','${esc(x.k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='mat'&&usageFilter.val===x.k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/matMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg · ${gbp(matCost[x.k]||0)}</span></div>`;
  const brow=b=>{const st=stockByBatch[b]; return `<div class="drow" onclick="setUsageFilter('batch','${esc(b)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='batch'&&usageFilter.val===b?'background:#FBF0DA':''}"><div class="m"><div class="t">batch ${esc(b)}${st?' <span class="cond">● in stock</span>':''}</div><div class="s">${batches[b].hulls.size} hull(s) · ${batches[b].n} lines · ${esc([...batches[b].mats].slice(0,3).join(', '))}</div></div><span class="cond">${Math.round(batches[b].kg)} kg</span></div>`;};
  const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${kg(m)} kg</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
  const flabel=usageFilter?(usageFilter.type==='hull'?'Hull '+usageFilter.val:usageFilter.type==='batch'?'Batch '+usageFilter.val:'Material '+usageFilter.val):'';
  const shownKg=Math.round(shown.reduce((s,m)=>s+kg(m),0));
  wrap.innerHTML=`<div class="secttl">Usage — record &amp; review</div>
   <div class="usageactions"><button class="uact primary" onclick="openMovement('Usage')">➕ Record usage</button><button class="uact" onclick="luOpen()">🧵 Import lay-up sheet</button><button class="uact" onclick="scanOpen('Usage')">📄 Scan usage sheet</button></div>
-  <div class="kpis">${kpi(lu.length,'Lay-up lines')}${kpi(totKg,'Total kg used')}${kpi(hullKeys.length,'Hulls')}${kpi(monthKg,'kg this month')}</div>
+  <div class="kpis">${kpi(lu.length,'Lay-up lines')}${kpi(totKg+' kg','Material used')}${kpi(gbp(totCost),'Material cost')}${kpi(hullKeys.length,'Hulls')}</div>
   <div class="secttl">${flabel?`Showing: <span style="color:var(--org)">${esc(flabel)}</span>`:'Everything used'} <span class="scount">${shown.length} lines · ${shownKg} kg</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
   <div class="panel"><div class="pbody" style="max-height:none">${shown.map(urow).join('')}</div></div>
   <div class="secttl">Drill down — by hull, material or batch</div>
