@@ -146,6 +146,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 .zcard.yc{border-top:4px solid #E8B400}
 .zcard.yard{background:#F6FAF3}
 .zcard.other,.zcard.un{background:#FBFBF9}
+.usageactions{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:2px 0 22px}
+@media(max-width:640px){.usageactions{grid-template-columns:1fr}}
+.uact{display:flex;align-items:center;justify-content:center;gap:9px;padding:20px 16px;border-radius:14px;border:2px solid var(--line);background:#fff;font-family:var(--fh);text-transform:uppercase;letter-spacing:.03em;font-size:17px;cursor:pointer;color:#000;box-shadow:0 1px 2px rgba(20,20,20,.04);transition:transform .1s,border-color .1s}
+.uact:hover{border-color:var(--org);transform:translateY(-1px)}
+.uact.primary{background:var(--org);color:#fff;border-color:var(--org)}
 .specline{font-weight:400;font-size:12px;color:#000000;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#000000;font-size:13.5px}
@@ -717,16 +722,17 @@ function renderUsage(){
  const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${kg(m)} kg</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
  const flabel=usageFilter?(usageFilter.type==='hull'?'Hull '+usageFilter.val:usageFilter.type==='batch'?'Batch '+usageFilter.val:'Material '+usageFilter.val):'';
  const shownKg=Math.round(shown.reduce((s,m)=>s+kg(m),0));
- wrap.innerHTML=`<div class="secttl">Usage — materials laid up</div>
+ wrap.innerHTML=`<div class="secttl">Usage — record &amp; review</div>
+  <div class="usageactions"><button class="uact primary" onclick="openMovement('Usage')">➕ Record usage</button><button class="uact" onclick="luOpen()">🧵 Import lay-up sheet</button><button class="uact" onclick="scanOpen('Usage')">📄 Scan usage sheet</button></div>
   <div class="kpis">${kpi(lu.length,'Lay-up lines')}${kpi(totKg,'Total kg used')}${kpi(hullKeys.length,'Hulls')}${kpi(monthKg,'kg this month')}</div>
+  <div class="secttl">${flabel?`Showing: <span style="color:var(--org)">${esc(flabel)}</span>`:'Everything used'} <span class="scount">${shown.length} lines · ${shownKg} kg</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
+  <div class="panel"><div class="pbody" style="max-height:none">${shown.map(urow).join('')}</div></div>
+  <div class="secttl">Drill down — by hull, material or batch</div>
   <div class="dcols">
    <div class="panel"><h3>By hull (HIN) <span class="cnt">${hullKeys.length}</span></h3><div class="pbody">${hullKeys.map(hrow).join('')}</div></div>
    <div class="panel"><h3>By material <span class="cnt">kg</span></h3><div class="pbody">${matList.map(mrow2).join('')}</div></div>
   </div>
-  <div class="secttl">By batch — traceability <span class="scount">${batchKeys.length} batches</span></div>
-  <div class="panel"><div class="pbody">${batchKeys.map(brow).join('')}</div></div>
-  <div class="secttl">${flabel?`Lines for: <span style="color:var(--org)">${esc(flabel)}</span>`:'All lay-up lines'} <span class="scount">${shown.length} lines · ${shownKg} kg</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
-  <div class="panel"><div class="pbody" style="max-height:none">${shown.map(urow).join('')}</div></div>`;
+  <div class="panel"><h3>By batch — traceability <span class="cnt">${batchKeys.length} batches</span></h3><div class="pbody">${batchKeys.map(brow).join('')}</div></div>`;
 }
 function renderDash(){
  const wrap=document.getElementById('list');
