@@ -151,6 +151,18 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 .uact{display:flex;align-items:center;justify-content:center;gap:9px;padding:20px 16px;border-radius:14px;border:2px solid var(--line);background:#fff;font-family:var(--fh);text-transform:uppercase;letter-spacing:.03em;font-size:17px;cursor:pointer;color:#000;box-shadow:0 1px 2px rgba(20,20,20,.04);transition:transform .1s,border-color .1s}
 .uact:hover{border-color:var(--org);transform:translateY(-1px)}
 .uact.primary{background:var(--org);color:#fff;border-color:var(--org)}
+.mhome{display:flex;flex-direction:column;gap:16px;margin-top:10px}
+.mcard{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--line);border-radius:18px;padding:24px;cursor:pointer;box-shadow:0 2px 6px rgba(20,20,20,.06);color:#000}
+.mcard.take{background:var(--org);border-color:var(--org);color:#fff}
+.mcard .mic{font-size:36px;line-height:1}
+.mcard .mct{font-family:var(--fh);text-transform:uppercase;font-size:23px;letter-spacing:.03em;margin-top:8px}
+.mcard .mcs{font-size:14px;margin-top:5px;opacity:.85;line-height:1.35}
+.mquick{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:2px}
+.mquick button{padding:16px 12px;border-radius:13px;border:1px solid var(--line);background:#fff;font-family:var(--fh);text-transform:uppercase;font-size:14px;letter-spacing:.02em;cursor:pointer;color:#000}
+.mquick button:active{background:var(--mist)}
+.tchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.tchip{flex:none;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14.5px;cursor:pointer;color:#000;white-space:nowrap}
+.tchip.on{background:#000;color:#fff;border-color:#000}
 .specline{font-weight:400;font-size:12px;color:#000000;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#000000;font-size:13.5px}
@@ -613,18 +625,43 @@ function cardsFor(sec,q,showHead){
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+7){ sel.innerHTML=`<option value="dash">Dashboard</option><option value="value">Stock value</option><option value="orders">Order book</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+8){ sel.innerHTML=`<option value="home">🏠 Home</option><option value="dash">Dashboard</option><option value="value">Stock value</option><option value="orders">Order book</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
  if(cur==='value'){ renderValue(); return; }
  if(cur==='orders'){ renderOrderBook(); return; }
  if(cur==='usage'){ renderUsage(); return; }
  if(cur==='mats'){ renderMaterials(); return; }
  if(cur==='store'){ renderStorage(); return; }
+ if(cur==='home'){ renderHome(); return; }
+ if(cur==='take'){ renderTake(); return; }
  const q=(val('q')||'').toLowerCase().trim();
  const secs=cur==='all'?CATS:CATS.filter(c=>c.id===cur);
  const wrap=document.getElementById('list');
  if(mqDesktop.matches){ wrap.innerHTML=secs.map(s=>tableFor(s,q)).join(''); }
  else{ wrap.innerHTML=`<div class="tap">Tap a line to edit · use − / + to change the count</div>`+secs.map(s=>cardsFor(s,q,cur==='all')).join(''); }
+}
+/* ---------- mobile home + stock-taking mode ---------- */
+function renderHome(){
+ const wrap=document.getElementById('list');
+ wrap.innerHTML=`<div class="mhome">
+   <button class="mcard take" onclick="setCur('take')"><div class="mic">📋</div><div class="mct">Stock‑taking mode</div><div class="mcs">Quick count, add &amp; scan — for walking round the sheds</div></button>
+   <button class="mcard" onclick="setCur('dash')"><div class="mic">📊</div><div class="mct">Dashboard &amp; reports</div><div class="mcs">Stock value, usage, order book &amp; all sections</div></button>
+   <div class="mquick"><button onclick="openAdd()">＋ Add item</button><button onclick="scanOpen('Delivery')">📷 Scan in</button><button onclick="setCur('value')">💷 Value</button><button onclick="setCur('usage')">🧵 Usage</button><button onclick="setCur('store')">🗺️ Storage</button><button onclick="setCur('all')">📦 All stock</button></div>
+  </div>`;
+}
+let takeSec=null;
+function setTakeSec(v){ takeSec=v; render(); }
+function renderTake(){
+ const wrap=document.getElementById('list');
+ const sec=(CATS.some(c=>c.id===takeSec)?takeSec:CATS[0].id);
+ const q=(val('q')||'').toLowerCase().trim();
+ const chips=CATS.map(c=>`<button class="tchip ${sec===c.id?'on':''}" onclick="setTakeSec('${c.id}')">${c.n} <span style="opacity:.55">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
+ const cObj=CATS.find(c=>c.id===sec);
+ wrap.innerHTML=`<div class="secttl" style="align-items:center">Stock‑taking <button class="mini" style="margin-left:auto;border-color:#ccc;color:#333" onclick="setCur('home')">✕ done</button></div>
+  <div class="usageactions" style="grid-template-columns:1fr 1fr;margin:2px 0 14px"><button class="uact primary" onclick="openAdd()">＋ Add item</button><button class="uact" onclick="scanOpen('Delivery')">📷 Scan</button></div>
+  <div class="tchips">${chips}</div>
+  <div class="tap" style="margin-top:12px">Tap a line to edit · use − / + to change the count</div>
+  ${cardsFor(cObj,q,false)}`;
 }
 /* ---------- storage map ---------- */
 let locFilter=null;
@@ -862,7 +899,7 @@ function propFill(){ const g=id=>val(id).trim();
  if(make)document.getElementById('f_item').value=make; }
 function openAdd(){ editingRowId=null; document.getElementById('sheetTitle').textContent='Add item';
  ['f_desc','f_qty','f_cost','f_loc','f_loc_other','f_item','f_batch','f_mfd','f_expiry','f_cond','f_spec'].concat(PROPF).forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
- document.getElementById('f_cat').value=(CATS.some(c=>c.id===cur)?cur:'grp');
+ document.getElementById('f_cat').value=(CATS.some(c=>c.id===cur)?cur:(CATS.some(c=>c.id===takeSec)?takeSec:'grp'));
  document.getElementById('delBtn').classList.add('hide'); document.getElementById('moreWrap').classList.add('hide');
  setLoc(''); onCatChange(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
 function openEdit(rowId){ const o=data.find(x=>x.rowId===rowId); if(!o)return; editingRowId=rowId;
@@ -1170,7 +1207,7 @@ async function cleanupMigration(){
 /* ---------- boot ---------- */
 function showApp(){ document.getElementById('gate').classList.add('hide'); document.getElementById('app').classList.remove('hide');
  document.getElementById('acct').innerHTML=account?`<span>${account.username||account.name||''}</span> ${(CONFIG.shareUrl||'').trim()?'':'<button class="mini" onclick="makeShareLink()">Set up sharing</button>'} <button class="mini" onclick="signOut()">Sign out</button>`:'';
- cur=mqDesktop.matches?'dash':'grp'; render(); }
+ cur=mqDesktop.matches?'dash':'home'; render(); }
 function showGate(){ document.getElementById('app').classList.add('hide'); document.getElementById('gate').classList.remove('hide'); }
 document.getElementById('f_cat').innerHTML=CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join('');
 mqDesktop.addEventListener('change',()=>{ if(!document.getElementById('app').classList.contains('hide')) render(); });
