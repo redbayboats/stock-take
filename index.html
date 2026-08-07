@@ -262,7 +262,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
   <div class="shh"><span class="t" id="sheetTitle">Add item</span><button class="x" onclick="closeSheet()">✕</button></div>
   <label class="fld"><span class="k">Section</span><select id="f_cat" class="fsel" onchange="onCatChange()"></select></label>
   <label class="fld"><span class="k">What is it? (description)</span><input id="f_desc" placeholder="e.g. Crystic 2.420PA (FR)"></label>
-  <label class="fld qbig"><span class="k">Quantity in stock</span><input id="f_qty" inputmode="decimal" placeholder="0"></label>
+  <div class="two"><label class="fld qbig"><span class="k">Quantity in stock</span><input id="f_qty" inputmode="decimal" placeholder="0"></label><label class="fld"><span class="k">Unit cost £ (each)</span><input id="f_cost" inputmode="decimal" placeholder="0.00"></label></div>
   <label class="fld"><span class="k">Location</span><select id="f_loc" class="fsel" onchange="onLocChange()"><option value="">— select —</option><option>Shed 1</option><option>Shed 2</option><option>Shed 3</option><option>Shed 4</option><option>Yellow container</option><option>Yard</option><option value="__other">Other… (type)</option></select><input id="f_loc_other" class="hide" style="margin-top:6px" placeholder="Type location"></label>
   <div id="propBlock" class="hide">
     <div class="two">
@@ -386,8 +386,8 @@ const CATS=[
 const NAME2ID={},ID2NAME={}; CATS.forEach(c=>{NAME2ID[c.n.toLowerCase()]=c.id;ID2NAME[c.id]=c.n});
 NAME2ID['fibreglass']='grp'; NAME2ID['fiberglass']='grp'; NAME2ID['fibreglassresin']='grp'; NAME2ID['chemical']='chem'; NAME2ID['chemicals']='chem';
 const SECT_COLOR={grp:'#E34721',chem:'#7A4EA8',tube:'#2E6B8A',timber:'#8A6D3B',hw:'#5B5B55',eng:'#2E6B3E',prop:'#B8791F',cons:'#9A9A94'};
-const COLS=['RowId','Category','Description','ItemNo','Batch','QtyReceived','QtyRemaining','DateManufactured','ExpiryDate','Location','Condition','Spec'];
-const COL2KEY={RowId:'rowId',Category:'catName',Description:'desc',ItemNo:'item',Batch:'batch',QtyReceived:'recv',QtyRemaining:'rem',DateManufactured:'mfd',ExpiryDate:'expiry',Location:'loc',Condition:'cond',Spec:'spec'};
+const COLS=['RowId','Category','Description','ItemNo','Batch','QtyReceived','QtyRemaining','DateManufactured','ExpiryDate','Location','Condition','Spec','UnitCost'];
+const COL2KEY={RowId:'rowId',Category:'catName',Description:'desc',ItemNo:'item',Batch:'batch',QtyReceived:'recv',QtyRemaining:'rem',DateManufactured:'mfd',ExpiryDate:'expiry',Location:'loc',Condition:'cond',Spec:'spec',UnitCost:'cost'};
 
 let pca=null, account=null, colPos=null, data=[], cur='all', editingRowId=null;
 const saveTimers={};
@@ -581,7 +581,8 @@ function stCell(o){ const s=stateOf(o),l=stLabel(o); return `<span class="st ${s
 
 function tableFor(sec,q){
  const rows=filterRows(sec.id,q);
- const head=`<div class="secttl">${sec.n} <span class="scount">${rows.length} item${rows.length===1?'':'s'}</span></div>`;
+ const totVal=rows.reduce((s,o)=>s+((parseFloat(o.rem)||0)*(parseFloat(o.cost)||0)),0);
+ const head=`<div class="secttl">${sec.n} <span class="scount">${rows.length} item${rows.length===1?'':'s'}${totVal?' · £'+Math.round(totVal).toLocaleString('en-GB'):''}</span></div>`;
  if(!rows.length) return head+`<div class="emptyrow">Nothing in ${sec.n}${q?' matching your search':' yet'}.</div>`;
  const body=rows.map(o=>`<tr class="${stateOf(o)==='exp'?'exp':stateOf(o)==='soon'?'soon':''}" onclick="openEdit('${o.rowId}')">
    <td class="desc">${esc(o.desc)||'<span class="mut">(no description)</span>'}${o.cond?` <span class="cond">${esc(o.cond)}</span>`:''}${o.spec?`<div class="specline">${esc(o.spec)}</div>`:''}</td>
@@ -590,9 +591,10 @@ function tableFor(sec,q){
    <td>${esc(o.loc)||'<span class="mut">—</span>'}</td>
    <td>${expDisp(o)}</td>
    <td>${stCell(o)}</td>
-   <td class="qc">${stepper(o,true)}</td></tr>`).join('');
+   <td class="qc">${stepper(o,true)}</td>
+   <td>${o.cost?('£'+Math.round((parseFloat(o.rem)||0)*(parseFloat(o.cost)||0)).toLocaleString('en-GB')):'<span class="mut">—</span>'}</td></tr>`).join('');
  return head+`<div class="tscroll"><table class="tbl"><thead><tr>
-   <th>Description</th><th>Item no.</th><th>Lot / batch</th><th>Location</th><th>Expiry</th><th>Status</th><th class="qc">Qty</th>
+   <th>Description</th><th>Item no.</th><th>Lot / batch</th><th>Location</th><th>Expiry</th><th>Status</th><th class="qc">Qty</th><th>Value</th>
    </tr></thead><tbody>${body}</tbody></table></div>`;
 }
 function cardsFor(sec,q,showHead){
@@ -859,7 +861,7 @@ function propFill(){ const g=id=>val(id).trim();
  if(!val('f_desc').trim()&&desc!=='Propeller')document.getElementById('f_desc').value=desc;
  if(make)document.getElementById('f_item').value=make; }
 function openAdd(){ editingRowId=null; document.getElementById('sheetTitle').textContent='Add item';
- ['f_desc','f_qty','f_loc','f_item','f_batch','f_mfd','f_expiry','f_cond','f_spec'].concat(PROPF).forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+ ['f_desc','f_qty','f_cost','f_loc','f_loc_other','f_item','f_batch','f_mfd','f_expiry','f_cond','f_spec'].concat(PROPF).forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
  document.getElementById('f_cat').value=(CATS.some(c=>c.id===cur)?cur:'grp');
  document.getElementById('delBtn').classList.add('hide'); document.getElementById('moreWrap').classList.add('hide');
  setLoc(''); onCatChange(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
@@ -869,7 +871,7 @@ function openEdit(rowId){ const o=data.find(x=>x.rowId===rowId); if(!o)return; e
  document.getElementById('f_desc').value=o.desc||''; document.getElementById('f_qty').value=o.rem||'';
  setLoc(o.loc||''); document.getElementById('f_item').value=o.item||'';
  document.getElementById('f_batch').value=o.batch||''; document.getElementById('f_mfd').value=o.mfd||''; document.getElementById('f_expiry').value=o.expiry||'';
- document.getElementById('f_cond').value=o.cond||''; document.getElementById('f_spec').value=o.spec||'';
+ document.getElementById('f_cond').value=o.cond||''; document.getElementById('f_spec').value=o.spec||''; document.getElementById('f_cost').value=o.cost||'';
  PROPF.forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
  document.getElementById('delBtn').classList.remove('hide'); document.getElementById('moreWrap').classList.remove('hide');
  onCatChange(); openSheet(); }
@@ -879,7 +881,7 @@ function closeSheet(){ document.getElementById('scrim').classList.remove('show')
 function saveSheet(){
  const desc=val('f_desc').trim(); if(!desc){ alert('Please enter a description.'); return; }
  const qty=val('f_qty').trim();
- const f={desc:desc,rem:qty,loc:locVal(),item:val('f_item').trim(),batch:val('f_batch').trim(),mfd:val('f_mfd'),expiry:val('f_expiry'),cond:val('f_cond'),spec:val('f_spec').trim(),cat:val('f_cat')};
+ const f={desc:desc,rem:qty,loc:locVal(),item:val('f_item').trim(),batch:val('f_batch').trim(),mfd:val('f_mfd'),expiry:val('f_expiry'),cond:val('f_cond'),spec:val('f_spec').trim(),cost:val('f_cost').trim(),cat:val('f_cat')};
  if(editingRowId===null){ commit({op:'add',obj:{rowId:uuid(),index:null,recv:qty,...f}}); }
  else { commit({op:'edit',rowId:editingRowId,fields:f}); }
  closeSheet();
