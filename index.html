@@ -675,39 +675,41 @@ async function doExport(){
  let XLSX; try{ XLSX=await loadXLSX(); }catch(e){ alert('Could not load the Excel writer (check internet).'); return; }
  const yr=new Date().getFullYear(), n=v=>parseFloat(v)||0;
  const wb=XLSX.utils.book_new();
- const add=(sn,rows)=>{ const ws=XLSX.utils.aoa_to_sheet(rows);
+ const GBP='"£"#,##0.00', GBP0='"£"#,##0', PCT='0%';
+ const add=(sn,rows,fmt)=>{ const ws=XLSX.utils.aoa_to_sheet(rows);
    const w=[]; rows.forEach(r=>(r||[]).forEach((c,i)=>{ const l=(c==null?'':String(c)).length; if(!w[i]||l>w[i])w[i]=l; }));
    ws['!cols']=w.map(x=>({wch:Math.min(Math.max((x||8)+2,9),60)}));
+   if(fmt&&ws['!ref']){ const rg=XLSX.utils.decode_range(ws['!ref']); for(let R=rg.s.r;R<=rg.e.r;R++){ for(const C in fmt){ const cell=ws[XLSX.utils.encode_cell({r:R,c:+C})]; if(cell&&cell.t==='n')cell.z=fmt[C]; } } }
    XLSX.utils.book_append_sheet(wb, ws, sn.slice(0,31)); };
  const items=id=>sel.has(id)?data.filter(o=>o.cat===id&&(o.desc||'').trim()):[];
  // 1. Summary — from the valuation snapshot
- const sr=[['Stock Summary '+name],[],['',yr]]; STOCKVAL.areas.forEach(a=>sr.push([a.n,a.v])); sr.push(['TOTAL',STOCKVAL.total]); add('Summary',sr);
+ const sr=[['Stock Summary '+name],[],['',yr]]; STOCKVAL.areas.forEach(a=>sr.push([a.n,a.v])); sr.push(['TOTAL',STOCKVAL.total]); add('Summary',sr,{1:GBP0});
  // 2. WIP — from the order book
  const wr=[['','','Year end date',''],['','Customer Name','Size','Colour','Engine','Build progress','Deposit Paid','First stage payment paid','Completion date','Completeness','Selling Price','WIP value']];
- ORDERBOOK.boats.forEach((b,i)=>wr.push([i+1,b.c,b.size,'',b.eng,'','','','',b.pc,b.sell,b.wip])); add('WIP '+yr,wr);
+ ORDERBOOK.boats.forEach((b,i)=>wr.push([i+1,b.c,b.size,'',b.eng,'','','','',b.pc,b.sell,b.wip])); add('WIP '+yr,wr,{9:PCT,10:GBP0,11:GBP0});
  // 3. Hose Rack — header only (not tracked in app)
  add('Hose Rack '+yr,[['UPSTAIRS STORE'],['Hose Stock '+yr],[],['Hose Type','Cost','Quantity','Total']]);
  // 4. Stainless — header only
  add('Stainless Steel Stores '+yr,[[],['Product','Price','Quantity','Total']]);
  // 5. GRP — Fibreglass & Resin + Chemicals
  const gr=[[],['FIBREGLASS MATERIALS '+yr],[],['Supplier','Material','Notes','Quantity','Unit Cost','Total']]; let gt=0;
- [...items('grp'),...items('chem')].forEach(o=>{ const q=n(o.rem),c=effCost(o),t=q*c; gt+=t; gr.push(['SB',o.desc||'',o.spec||o.item||'',q,c||'',t||'']); }); gr.push(['','','','','TOTAL',gt]); add('GRP '+yr,gr);
+ [...items('grp'),...items('chem')].forEach(o=>{ const q=n(o.rem),c=effCost(o),t=q*c; gt+=t; gr.push(['SB',o.desc||'',o.spec||o.item||'',q,c||'',t||'']); }); gr.push(['','','','','TOTAL',gt]); add('GRP '+yr,gr,{4:GBP,5:GBP});
  // 6. Engines — header only
  add('Engines '+yr,[[],[],[],['ENGINES & DRIVES '+yr]]);
  // 7. WoodStock — Timber & sheet
  const wo=[[],[],[],['WOOD STOCK '+yr],[],['TYPE','SIZE','QUANTITY','UNIT COST','TOTAL']]; let wt=0;
- items('timber').forEach(o=>{ const w=matchWood(o.desc); const q=n(o.rem),c=effCost(o),t=q*c; wt+=t; wo.push([w?w.t:(o.desc||''),w?w.s:(o.spec||''),q,c||'',t||'']); }); wo.push(['','','','TOTAL',wt]); add('WoodStock '+yr,wo);
+ items('timber').forEach(o=>{ const w=matchWood(o.desc); const q=n(o.rem),c=effCost(o),t=q*c; wt+=t; wo.push([w?w.t:(o.desc||''),w?w.s:(o.spec||''),q,c||'',t||'']); }); wo.push(['','','','TOTAL',wt]); add('WoodStock '+yr,wo,{3:GBP,4:GBP});
  // 8. Window — header only
  add('Window Stock '+yr,[[],[],[],['WINDOW/DOOR STOCK '+yr],[],['ITEM','QUANTITY','COST','TOTAL']]);
  // 9. Tubers — Tube materials
  const tu=[[],[],['TUBERS '+yr],[],['Description','Qty','unit cost','Total']]; let tt=0;
- items('tube').forEach(o=>{ const q=n(o.rem),c=effCost(o),t=q*c; tt+=t; tu.push([o.desc||'',q,c||'',t||'']); }); tu.push(['','','TOTAL',tt]); add('Tubers '+yr,tu);
+ items('tube').forEach(o=>{ const q=n(o.rem),c=effCost(o),t=q*c; tt+=t; tu.push([o.desc||'',q,c||'',t||'']); }); tu.push(['','','TOTAL',tt]); add('Tubers '+yr,tu,{2:GBP,3:GBP});
  // 10. Other Stock — header only
  add('Other Stock '+yr,[[],['OTHER STOCK '+yr],[],['STOCK','VALUE']]);
  // 11. Boats and Trailers — header only
  add('Boats and Trailers',[['Trailer Type','Quantity','Cost','Total']]);
  // extra app sections with no matching stock-take sheet (so nothing is lost)
- const extra=(id,title)=>{ const its=items(id); if(!its.length)return; const rows=[[title+' — '+yr],[],['Description','Item no.','Batch','Location','Condition','Qty','Unit cost','Value']]; let t=0; its.forEach(o=>{ const q=n(o.rem),c=effCost(o),v=q*c; t+=v; rows.push([o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',q,c||'',v||'']); }); rows.push(['','','','','','','TOTAL',t]); add(title,rows); };
+ const extra=(id,title)=>{ const its=items(id); if(!its.length)return; const rows=[[title+' — '+yr],[],['Description','Item no.','Batch','Location','Condition','Qty','Unit cost','Value']]; let t=0; its.forEach(o=>{ const q=n(o.rem),c=effCost(o),v=q*c; t+=v; rows.push([o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',q,c||'',v||'']); }); rows.push(['','','','','','','TOTAL',t]); add(title,rows,{6:GBP,7:GBP}); };
  extra('prop','Propellers'); extra('hw','Hardware & fittings'); extra('cons','Consumables & PPE');
  XLSX.writeFile(wb, name+'.xlsx');
  closeExport(); setSync('ok','Exported '+name);
