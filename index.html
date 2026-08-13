@@ -713,14 +713,16 @@ async function doExport(){
  if(sum){ try{
    // 1. freeze the existing current column (B) into a static "July 2026" snapshot — nothing before it is touched
    for(let r=4;r<=21;r++){ const cell=sum.getRow(r).getCell(2); if(cell&&cell.formula){ const res=unwrap(cell.value); cell.value=(res==null?0:res); } }
-   sum.getRow(2).getCell(2).value='July';
-   // 2. build the new month column: carry July forward, override the three app-tracked areas
+   sum.getRow(2).getCell(2).value=null;
+   const jb=sum.getRow(3).getCell(2); jb.value=new Date(yr,6,1); jb.numFmt='mmm-yy';   // frozen column header -> "Jul-26"
+   // 2. build the new month column: carry July forward (Mmm-yy date header set after insert)
    const augCol=[]; for(let r=1;r<=21;r++){ augCol[r-1]=(r>=4&&r<=20)?unwrap(sum.getRow(r).getCell(2).value):null; }
-   augCol[1]=mName; augCol[2]=yr;
+   augCol[1]=null; augCol[2]=null;
    // NOTE: app counts rolls/drums, accountant values in kg — so we carry the prior £ figures forward
    // (the physical stock take lives on the GRP/WoodStock/Tubers detail sheets). Values updated by hand or once kg pack-sizes are set.
    // 3. insert it as the next column (C) — everything from Nov-2025 rightward just shifts across, untouched
    sum.spliceColumns(3,0,augCol);
+   const ac=sum.getRow(3).getCell(3); ac.value=new Date(yr, MONTHS.indexOf(mName), 1); ac.numFmt='mmm-yy';  // new month header -> e.g. "Aug-26"
    // 4. re-align the TOTALS row across all columns after the shift
    const last=sum.columnCount; for(let c=2;c<=last;c++){ const L=sum.getColumn(c).letter; sum.getRow(21).getCell(c).value={formula:`SUM(${L}4:${L}20)`}; }
    sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr;
