@@ -679,7 +679,7 @@ async function doExport(){
    const w=[]; rows.forEach(r=>(r||[]).forEach((c,i)=>{ const l=(c==null?'':String(c)).length; if(!w[i]||l>w[i])w[i]=l; }));
    ws['!cols']=w.map(x=>({wch:Math.min(Math.max((x||8)+2,9),60)}));
    XLSX.utils.book_append_sheet(wb, ws, sn.slice(0,31)); };
- const items=id=>sel.has(id)?data.filter(o=>o.cat===id):[];
+ const items=id=>sel.has(id)?data.filter(o=>o.cat===id&&(o.desc||'').trim()):[];
  // 1. Summary — from the valuation snapshot
  const sr=[['Stock Summary '+name],[],['',yr]]; STOCKVAL.areas.forEach(a=>sr.push([a.n,a.v])); sr.push(['TOTAL',STOCKVAL.total]); add('Summary',sr);
  // 2. WIP — from the order book
@@ -779,12 +779,14 @@ const COSTKG={csm300:2.80,csm450:2.80,csm600:2.80,csm900:2.80,wr800:2.81,resin24
 function costOf(name){ const id=matchType(name); return (id&&COSTKG[id]!=null)?COSTKG[id]:0; }
 /* default unit prices from Stock Take July 2026 (editable per item) — first keyword match wins */
 const PRICELIST=[
+ {kw:'flocoat',p:6.25},{kw:'flowcoat',p:6.25},{kw:'fc1h',p:6.25},
+ {kw:'gt600',p:4.93},{kw:'gt-600',p:4.93},{kw:'gc ',p:4.93},{kw:'gelcoat',p:4.93},{kw:'gel ',p:4.93},{kw:'tc ',p:6.25},
  {kw:'crestomer',p:9.27},{kw:'crestamould',p:3.95},{kw:'crestamold',p:3.95},
  {kw:'fireguard',p:8.52},{kw:'geltint',p:6.25},{kw:'topcoat',p:6.25},
  {kw:'acetone',p:324},{kw:'catalyst',p:5.55},{kw:'hardener',p:5.55},{kw:'mek',p:575},
  {kw:'green board',p:80},{kw:'greenboard',p:80},{kw:'white board',p:36},{kw:'whiteboard',p:36},
  {kw:'melamine',p:42},{kw:'chipboard',p:25.7},{kw:'walnut',p:75},{kw:'oak',p:110},
- {kw:'plywood',p:28.7},{kw:'ply',p:28.7},{kw:'mdf',p:42},{kw:'foam',p:30.6},
+ {kw:'plywood',p:28.7},{kw:'ply',p:28.7},{kw:'mdf',p:42},
  {kw:'orca',p:213.17},{kw:'hypalon',p:60},{kw:'treadmaster',p:170.86},{kw:'primer',p:30.5},
  {kw:'fuel hose',p:10.18},{kw:'water hose',p:3.3},{kw:'sanitation',p:5.44},{kw:'ducting',p:49.34},{kw:'hose',p:20.29}
 ];
@@ -805,7 +807,7 @@ function matchWood(desc){ const s=String(desc||'').toLowerCase(); if(!s.trim())r
  if(/hatch/.test(s))return WOOD.find(w=>w.t===(/walnut/.test(s)?'SEAT HATCHES WALNUT':'SEAT HATCHES OAK'));
  if(/chipboard/.test(s))return WOOD.find(w=>w.t==='MELAMINE 18mm Chipboard');
  if(/mdf|melamine/.test(s))return WOOD.find(w=>w.t==='MELAMINE 18 MDF');
- if(/mannok|foam/.test(s))return WOOD.find(w=>w.t===(/2"|2 ?inch|50 ?mm/.test(s)?'MANNOK 2" FOAM':'MANNOK 1" FOAM'));
+ if(/mannok/.test(s))return WOOD.find(w=>w.t===(/2"|2 ?inch|50 ?mm/.test(s)?'MANNOK 2" FOAM':'MANNOK 1" FOAM'));
  if(/green ?board/.test(s))return near('GREEN BOARD');
  if(/white ?board/.test(s))return (sz&&sz>=15)?WOOD.find(w=>w.t==='WHITEBOARD'):WOOD.find(w=>w.t==='WHITE BOARD');
  if(/walnut/.test(s))return WOOD.find(w=>w.t==='WALNUT LENGTHS');
