@@ -711,18 +711,14 @@ async function doExport(){
  const grpA=areaTot(['grp','chem']), woodA=areaTot(['timber']), tubA=areaTot(['tube']);
  const sum=wb.getWorksheet('Summary');
  if(sum){ try{
-   // 1. freeze the existing current column (B) into a static "July 2026" snapshot — nothing before it is touched
+   // 1. freeze the existing current column (B = the prior/July stock take) into static values
    for(let r=4;r<=21;r++){ const cell=sum.getRow(r).getCell(2); if(cell&&cell.formula){ const res=unwrap(cell.value); cell.value=(res==null?0:res); } }
-   sum.getRow(2).getCell(2).value=null;
-   const jb=sum.getRow(3).getCell(2); jb.value=new Date(yr,6,1); jb.numFmt='mmm-yy';   // frozen column header -> "Jul-26"
-   // 2. build the new month column: carry July forward (Mmm-yy date header set after insert)
-   const augCol=[]; for(let r=1;r<=21;r++){ augCol[r-1]=(r>=4&&r<=20)?unwrap(sum.getRow(r).getCell(2).value):null; }
-   augCol[1]=null; augCol[2]=null;
-   // NOTE: app counts rolls/drums, accountant values in kg — so we carry the prior £ figures forward
-   // (the physical stock take lives on the GRP/WoodStock/Tubers detail sheets). Values updated by hand or once kg pack-sizes are set.
-   // 3. insert it as the next column (C) — everything from Nov-2025 rightward just shifts across, untouched
-   sum.spliceColumns(3,0,augCol);
-   const ac=sum.getRow(3).getCell(3); ac.value=new Date(yr, MONTHS.indexOf(mName), 1); ac.numFmt='mmm-yy';  // new month header -> e.g. "Aug-26"
+   // 2. new month = carry the prior figures forward (values only), inserted as the NEW LEFTMOST column (newest-first, like Nov-25 sits left of 2025)
+   const newCol=[]; for(let r=1;r<=21;r++){ newCol[r-1]=(r>=4&&r<=20)?unwrap(sum.getRow(r).getCell(2).value):null; }
+   sum.spliceColumns(2,0,newCol);
+   // 3. headers as Mmm-yy dates: B = new month (e.g. Aug-26), C = the frozen prior month (Jul-26)
+   sum.getRow(2).getCell(2).value=null; const nb=sum.getRow(3).getCell(2); nb.value=new Date(yr, MONTHS.indexOf(mName), 1); nb.numFmt='mmm-yy';
+   sum.getRow(2).getCell(3).value=null; const pb=sum.getRow(3).getCell(3); pb.value=new Date(yr,6,1); pb.numFmt='mmm-yy';
    // 4. re-align the TOTALS row across all columns after the shift
    const last=sum.columnCount; for(let c=2;c<=last;c++){ const L=sum.getColumn(c).letter; sum.getRow(21).getCell(c).value={formula:`SUM(${L}4:${L}20)`}; }
    sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr;
