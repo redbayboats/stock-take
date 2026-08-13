@@ -693,7 +693,7 @@ async function doExport(){
  add('Engines '+yr,[[],[],[],['ENGINES & DRIVES '+yr]]);
  // 7. WoodStock — Timber & sheet
  const wo=[[],[],[],['WOOD STOCK '+yr],[],['TYPE','SIZE','QUANTITY','UNIT COST','TOTAL']]; let wt=0;
- items('timber').forEach(o=>{ const q=n(o.rem),c=effCost(o),t=q*c; wt+=t; wo.push([o.desc||'',o.spec||'',q,c||'',t||'']); }); wo.push(['','','','TOTAL',wt]); add('WoodStock '+yr,wo);
+ items('timber').forEach(o=>{ const w=matchWood(o.desc); const q=n(o.rem),c=effCost(o),t=q*c; wt+=t; wo.push([w?w.t:(o.desc||''),w?w.s:(o.spec||''),q,c||'',t||'']); }); wo.push(['','','','TOTAL',wt]); add('WoodStock '+yr,wo);
  // 8. Window — header only
  add('Window Stock '+yr,[[],[],[],['WINDOW/DOOR STOCK '+yr],[],['ITEM','QUANTITY','COST','TOTAL']]);
  // 9. Tubers — Tube materials
@@ -785,7 +785,32 @@ const PRICELIST=[
  {kw:'orca',p:213.17},{kw:'hypalon',p:60},{kw:'treadmaster',p:170.86},{kw:'primer',p:30.5},
  {kw:'fuel hose',p:10.18},{kw:'water hose',p:3.3},{kw:'sanitation',p:5.44},{kw:'ducting',p:49.34},{kw:'hose',p:20.29}
 ];
+/* canonical WOOD STOCK catalogue (July 2026) — snaps app timber to the real type+size+price */
+const WOOD=[
+ {t:'PLY',s:6,p:20.43},{t:'PLY',s:12,p:28.7},{t:'PLY',s:18,p:39.5},{t:'PLY',s:25,p:55},
+ {t:'WHITE BOARD',s:12,p:36},{t:'WHITEBOARD',s:18,p:42},
+ {t:'GREEN BOARD',s:13,p:80},{t:'GREEN BOARD',s:19,p:112.8},
+ {t:'WALNUT LENGTHS',s:'',p:75},{t:'OAK LENGTHS',s:'',p:110},
+ {t:'TOILET DOOR OAK',s:1150,p:600},{t:'SEAT HATCHES WALNUT',s:1150,p:600},{t:'SEAT HATCHES OAK',s:1150,p:600},
+ {t:'MANNOK 1" FOAM',s:'8X4 SHEETS',p:30.6},{t:'MANNOK 2" FOAM',s:'8X4 SHEETS',p:38.9},
+ {t:'MELAMINE 18 MDF',s:'8X4 SHEETS',p:42},{t:'MELAMINE 18mm Chipboard',s:'8X4 SHEETS',p:25.7}
+];
+function matchWood(desc){ const s=String(desc||'').toLowerCase(); if(!s.trim())return null;
+ const m=s.match(/(\d+(?:\.\d+)?)\s*mm/)||s.match(/\b(\d{1,2})\b/); const sz=m?parseFloat(m[1]):null;
+ const near=t=>{ const cs=WOOD.filter(w=>w.t===t); if(sz==null)return cs[0]; let best=cs[0],bd=1e9; cs.forEach(c=>{ const d=Math.abs(c.s-sz); if(d<bd){bd=d;best=c;} }); return best; };
+ if(/toilet door|oak door|dark oak|light oak/.test(s))return WOOD.find(w=>w.t==='TOILET DOOR OAK');
+ if(/hatch/.test(s))return WOOD.find(w=>w.t===(/walnut/.test(s)?'SEAT HATCHES WALNUT':'SEAT HATCHES OAK'));
+ if(/chipboard/.test(s))return WOOD.find(w=>w.t==='MELAMINE 18mm Chipboard');
+ if(/mdf|melamine/.test(s))return WOOD.find(w=>w.t==='MELAMINE 18 MDF');
+ if(/mannok|foam/.test(s))return WOOD.find(w=>w.t===(/2"|2 ?inch|50 ?mm/.test(s)?'MANNOK 2" FOAM':'MANNOK 1" FOAM'));
+ if(/green ?board/.test(s))return near('GREEN BOARD');
+ if(/white ?board/.test(s))return (sz&&sz>=15)?WOOD.find(w=>w.t==='WHITEBOARD'):WOOD.find(w=>w.t==='WHITE BOARD');
+ if(/walnut/.test(s))return WOOD.find(w=>w.t==='WALNUT LENGTHS');
+ if(/ply/.test(s))return near('PLY');
+ if(/oak/.test(s))return WOOD.find(w=>w.t==='OAK LENGTHS');
+ return null; }
 function defaultCost(desc){ const id=matchType(desc); if(id&&COSTKG[id]!=null)return COSTKG[id];
+ const w=matchWood(desc); if(w)return w.p;
  const s=String(desc||'').toLowerCase(); for(const r of PRICELIST){ if(s.indexOf(r.kw)>=0)return r.p; } return null; }
 function effCost(o){ const c=parseFloat(o.cost); if(o.cost!==''&&o.cost!=null&&!isNaN(c))return c; const d=defaultCost(o.desc); return d!=null?d:0; }
 function updateCostHint(){ const el=document.getElementById('f_cost'), hint=document.getElementById('f_cost_hint'); if(!el)return;
