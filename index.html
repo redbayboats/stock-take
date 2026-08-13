@@ -163,6 +163,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 .tchips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
 .tchip{flex:none;padding:10px 15px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:14.5px;cursor:pointer;color:#000;white-space:nowrap}
 .tchip.on{background:#000;color:#fff;border-color:#000}
+.expitem{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;cursor:pointer;font-size:15px}
+.expitem input{width:20px;height:20px;accent-color:var(--org);flex:none}
+.expitem .en{flex:1;font-weight:600}
 .specline{font-weight:400;font-size:12px;color:#000000;margin-top:2px}
 .tag.exp{background:#FBE4DC;color:#B8341A}.tag.soon{background:#FBF0DA;color:#8a6410}
 .dempty{padding:18px 14px;color:#000000;font-size:13.5px}
@@ -258,7 +261,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
          <button onclick="closeActions();printSheet('layup')">🖨 Print — fibreglass lay-up record</button>
          <button onclick="closeActions();luOpen()">🧵 Import a fibreglass lay-up sheet</button>
          <button onclick="closeActions();openImport()">⬆ Import a stock spreadsheet</button>
-         <button onclick="closeActions();exportStockTake()">📤 Stock take done — export Excel</button>
+         <button onclick="closeActions();openExport()">📤 Stock take done — export Excel</button>
        </div>
      </div>
      <select class="sel mobilepick" id="catSel" onchange="setCur(this.value)"></select>
@@ -307,6 +310,15 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
   </div>
   <button class="save" id="saveBtn" onclick="saveSheet()">Save</button>
   <button class="del hide" id="delBtn" onclick="deleteFromSheet()">Delete this line</button>
+</div>
+
+<div class="scrim" id="expScrim" onclick="closeExport()"></div>
+<div class="sheet" id="expSheet">
+  <div class="shh"><span class="t">Export stock take</span><button class="x" onclick="closeExport()">✕</button></div>
+  <label class="fld"><span class="k">Save as</span><input id="exp_name" placeholder="Stock Take August 2026"></label>
+  <div style="display:flex;align-items:center;margin:8px 2px 6px"><span class="k">Sections to include</span><button class="mini" style="margin-left:auto;border-color:#ccc;color:#333" onclick="expAll(true)">All</button><button class="mini" style="border-color:#ccc;color:#333;margin-left:6px" onclick="expAll(false)">None</button></div>
+  <div id="exp_secs"></div>
+  <button class="save" onclick="doExport()">📤 Generate Excel</button>
 </div>
 
 <div class="scrim" id="impScrim" onclick="closeImport()"></div>
@@ -643,31 +655,40 @@ function render(){
 }
 /* ---------- export a dated stock-take workbook ---------- */
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-async function exportStockTake(){
+function openExport(){
+ const now=new Date();
+ document.getElementById('exp_name').value='Stock Take '+MONTHS[now.getMonth()]+' '+now.getFullYear();
+ const secs=CATS.map(c=>({c,n:data.filter(o=>o.cat===c.id).length})).filter(x=>x.n>0);
+ document.getElementById('exp_secs').innerHTML=secs.length?secs.map(x=>`<label class="expitem"><input type="checkbox" class="expsec" value="${x.c.id}" checked><span class="en">${x.c.n}</span><span class="mut">${x.n} item${x.n===1?'':'s'}</span></label>`).join(''):'<div class="dempty">No stock loaded to export.</div>';
+ document.getElementById('expScrim').classList.add('show'); document.getElementById('expSheet').classList.add('show');
+}
+function closeExport(){ document.getElementById('expScrim').classList.remove('show'); document.getElementById('expSheet').classList.remove('show'); }
+function expAll(v){ document.querySelectorAll('.expsec').forEach(cb=>cb.checked=v); }
+async function doExport(){
+ const name=(document.getElementById('exp_name').value||'').trim(); if(!name){ alert('Please enter a name.'); return; }
+ const sel=[...document.querySelectorAll('.expsec:checked')].map(cb=>cb.value); if(!sel.length){ alert('Tick at least one section to include.'); return; }
  let XLSX; try{ XLSX=await loadXLSX(); }catch(e){ alert('Could not load the Excel writer (check internet).'); return; }
- const now=new Date(); const mName=MONTHS[now.getMonth()], yr=now.getFullYear();
- const suggested='Stock Take '+mName+' '+yr;
- const name=prompt('Save this stock take as:', suggested);
- if(!name) return;
  const num2=v=>{ const n=parseFloat(v); return isNaN(n)?'':n; };
- const rows=[['Red Bay Boats — '+name],['Generated '+now.toLocaleDateString('en-GB')+' by '+(account&&account.username||'')],[],
+ const cats=CATS.filter(c=>sel.indexOf(c.id)>=0);
+ const now=new Date();
+ const rows=[['Red Bay Boats — '+name],['Generated '+now.toLocaleDateString('en-GB')+' by '+(account&&account.username||''),'','','','','','Sections: '+cats.map(c=>c.n).join(', ')],[],
   ['Section','Description','Item no.','Lot / batch','Location','Condition','Qty','Unit cost £','Value £','Mfd','Expiry']];
  let grand=0;
- CATS.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; let secVal=0;
+ cats.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; let secVal=0;
   items.forEach(o=>{ const qty=num2(o.rem)||0, cost=num2(o.cost)||0, val=qty*cost; secVal+=val;
    rows.push([c.n,o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',num2(o.rem),num2(o.cost),val||'',o.mfd||'',o.expiry||'']); });
   rows.push(['',c.n+' subtotal','','','','','','',secVal||'','','']); rows.push([]); grand+=secVal; });
- rows.push(['','GRAND TOTAL','','','','','','',grand,'','']);
+ rows.push(['','GRAND TOTAL (selected sections)','','','','','','',grand,'','']);
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name.slice(0,31));
  const sum=[['Section','Items','Total qty','Value £']];
- CATS.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return;
-  const q=items.reduce((s,o)=>s+(num2(o.rem)||0),0), v=items.reduce((s,o)=>s+((num2(o.rem)||0)*(num2(o.cost)||0)),0);
-  sum.push([c.n,items.length,q,v]); });
- sum.push(['TOTAL',data.length,data.reduce((s,o)=>s+(num2(o.rem)||0),0),grand]);
+ cats.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; const q=items.reduce((s,o)=>s+(num2(o.rem)||0),0), v=items.reduce((s,o)=>s+((num2(o.rem)||0)*(num2(o.cost)||0)),0); sum.push([c.n,items.length,q,v]); });
+ const totItems=cats.reduce((s,c)=>s+data.filter(o=>o.cat===c.id).length,0);
+ const totQty=cats.reduce((s,c)=>s+data.filter(o=>o.cat===c.id).reduce((t,o)=>t+(num2(o.rem)||0),0),0);
+ sum.push(['TOTAL',totItems,totQty,grand]);
  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), 'Summary');
  XLSX.writeFile(wb, name+'.xlsx');
- setSync('ok','Exported '+name);
+ closeExport(); setSync('ok','Exported '+name);
 }
 /* ---------- mobile home + stock-taking mode ---------- */
 function renderHome(){
@@ -689,7 +710,7 @@ function renderTake(){
  wrap.innerHTML=`<div class="secttl" style="align-items:center">Stock‑taking <button class="mini" style="margin-left:auto;border-color:#ccc;color:#333" onclick="setCur('home')">✕ done</button></div>
   <div class="usageactions" style="grid-template-columns:1fr 1fr;margin:2px 0 14px"><button class="uact primary" onclick="openAdd()">＋ Add item</button><button class="uact" onclick="scanOpen('Delivery')">📷 Scan</button></div>
   <div class="tchips">${chips}</div>
-  <button class="uact" style="width:100%;background:#2E6B3E;color:#fff;border-color:#2E6B3E;margin:12px 0 4px" onclick="exportStockTake()">✓ Stock take done — save Excel</button>
+  <button class="uact" style="width:100%;background:#2E6B3E;color:#fff;border-color:#2E6B3E;margin:12px 0 4px" onclick="openExport()">✓ Stock take done — save Excel</button>
   <div class="tap" style="margin-top:8px">Tap a line to edit · use − / + to change the count</div>
   ${cardsFor(cObj,q,false)}`;
 }
