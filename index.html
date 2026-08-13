@@ -277,8 +277,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:15px;min-width:600px}
 <div class="sheet" id="sheet">
   <div class="shh"><span class="t" id="sheetTitle">Add item</span><button class="x" onclick="closeSheet()">✕</button></div>
   <label class="fld"><span class="k">Section</span><select id="f_cat" class="fsel" onchange="onCatChange()"></select></label>
-  <label class="fld"><span class="k">What is it? (description)</span><input id="f_desc" placeholder="e.g. Crystic 2.420PA (FR)"></label>
+  <label class="fld"><span class="k">What is it? (description)</span><input id="f_desc" oninput="updateCostHint()" placeholder="e.g. Crystic 2.420PA (FR)"></label>
   <div class="two"><label class="fld qbig"><span class="k">Quantity in stock</span><input id="f_qty" inputmode="decimal" placeholder="0"></label><label class="fld"><span class="k">Unit cost £ (each)</span><input id="f_cost" inputmode="decimal" placeholder="0.00"></label></div>
+  <div id="f_cost_hint" class="mut" style="font-size:12px;margin:-4px 2px 10px;color:#666"></div>
   <label class="fld"><span class="k">Location</span><select id="f_loc" class="fsel" onchange="onLocChange()"><option value="">— select —</option><option>Shed 1</option><option>Shed 2</option><option>Shed 3</option><option>Shed 4</option><option>Yellow container</option><option>Yard</option><option value="__other">Other… (type)</option></select><input id="f_loc_other" class="hide" style="margin-top:6px" placeholder="Type location"></label>
   <div id="propBlock" class="hide">
     <div class="two">
@@ -596,7 +597,11 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function renderSide(){
  const side=document.getElementById('side'); if(!side)return;
  const total=data.length;
- let h=`<button class="snav ${cur==='dash'?'on':''}" onclick="setCur('dash')">📊 Dashboard</button><button class="snav ${cur==='value'?'on':''}" onclick="setCur('value')">💷 Stock value</button><button class="snav ${cur==='orders'?'on':''}" onclick="setCur('orders')">🚤 Order book</button><button class="snav ${cur==='usage'?'on':''}" onclick="setCur('usage')">🧵 Usage</button><button class="snav ${cur==='mats'?'on':''}" onclick="setCur('mats')">📦 Materials</button><button class="snav ${cur==='store'?'on':''}" onclick="setCur('store')">🗺️ Storage map</button><div class="sh">Sections</div>`;
+ const nav=(id,label)=>`<button class="snav ${cur===id?'on':''}" onclick="setCur('${id}')">${label}</button>`;
+ let h=`<div class="sh">Overview</div>`+nav('dash','📊 Dashboard');
+ h+=`<div class="sh">Finance</div>`+nav('value','💷 Stock value')+nav('orders','🚤 Order book');
+ h+=`<div class="sh">Stock</div>`+nav('usage','🧵 Usage')+nav('mats','📦 Materials')+nav('store','🗺️ Storage map');
+ h+=`<div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
  h+=CATS.map(c=>`<button class="snav ${cur===c.id?'on':''}" onclick="setCur('${c.id}')">${c.n} <span class="cnt">${data.filter(o=>o.cat===c.id).length}</span></button>`).join('');
  side.innerHTML=h;
@@ -606,7 +611,7 @@ function stCell(o){ const s=stateOf(o),l=stLabel(o); return `<span class="st ${s
 
 function tableFor(sec,q){
  const rows=filterRows(sec.id,q);
- const totVal=rows.reduce((s,o)=>s+((parseFloat(o.rem)||0)*(parseFloat(o.cost)||0)),0);
+ const totVal=rows.reduce((s,o)=>s+((parseFloat(o.rem)||0)*effCost(o)),0);
  const head=`<div class="secttl">${sec.n} <span class="scount">${rows.length} item${rows.length===1?'':'s'}${totVal?' · £'+Math.round(totVal).toLocaleString('en-GB'):''}</span></div>`;
  if(!rows.length) return head+`<div class="emptyrow">Nothing in ${sec.n}${q?' matching your search':' yet'}.</div>`;
  const body=rows.map(o=>`<tr class="${stateOf(o)==='exp'?'exp':stateOf(o)==='soon'?'soon':''}" onclick="openEdit('${o.rowId}')">
@@ -617,7 +622,7 @@ function tableFor(sec,q){
    <td>${expDisp(o)}</td>
    <td>${stCell(o)}</td>
    <td class="qc">${stepper(o,true)}</td>
-   <td>${o.cost?('£'+Math.round((parseFloat(o.rem)||0)*(parseFloat(o.cost)||0)).toLocaleString('en-GB')):'<span class="mut">—</span>'}</td></tr>`).join('');
+   <td>${((parseFloat(o.rem)||0)*effCost(o))?('£'+Math.round((parseFloat(o.rem)||0)*effCost(o)).toLocaleString('en-GB')):'<span class="mut">—</span>'}</td></tr>`).join('');
  return head+`<div class="tscroll"><table class="tbl"><thead><tr>
    <th>Description</th><th>Item no.</th><th>Lot / batch</th><th>Location</th><th>Expiry</th><th>Status</th><th class="qc">Qty</th><th>Value</th>
    </tr></thead><tbody>${body}</tbody></table></div>`;
@@ -675,14 +680,14 @@ async function doExport(){
   ['Section','Description','Item no.','Lot / batch','Location','Condition','Qty','Unit cost £','Value £','Mfd','Expiry']];
  let grand=0;
  cats.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; let secVal=0;
-  items.forEach(o=>{ const qty=num2(o.rem)||0, cost=num2(o.cost)||0, val=qty*cost; secVal+=val;
-   rows.push([c.n,o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',num2(o.rem),num2(o.cost),val||'',o.mfd||'',o.expiry||'']); });
+  items.forEach(o=>{ const qty=num2(o.rem)||0, cost=effCost(o), val=qty*cost; secVal+=val;
+   rows.push([c.n,o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',num2(o.rem),cost||'',val||'',o.mfd||'',o.expiry||'']); });
   rows.push(['',c.n+' subtotal','','','','','','',secVal||'','','']); rows.push([]); grand+=secVal; });
  rows.push(['','GRAND TOTAL (selected sections)','','','','','','',grand,'','']);
  const wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name.slice(0,31));
  const sum=[['Section','Items','Total qty','Value £']];
- cats.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; const q=items.reduce((s,o)=>s+(num2(o.rem)||0),0), v=items.reduce((s,o)=>s+((num2(o.rem)||0)*(num2(o.cost)||0)),0); sum.push([c.n,items.length,q,v]); });
+ cats.forEach(c=>{ const items=data.filter(o=>o.cat===c.id); if(!items.length)return; const q=items.reduce((s,o)=>s+(num2(o.rem)||0),0), v=items.reduce((s,o)=>s+((num2(o.rem)||0)*effCost(o)),0); sum.push([c.n,items.length,q,v]); });
  const totItems=cats.reduce((s,c)=>s+data.filter(o=>o.cat===c.id).length,0);
  const totQty=cats.reduce((s,c)=>s+data.filter(o=>o.cat===c.id).reduce((t,o)=>t+(num2(o.rem)||0),0),0);
  sum.push(['TOTAL',totItems,totQty,grand]);
@@ -755,6 +760,23 @@ const PACKKG={csm300:null,csm450:null,csm600:null,csm900:null,wr800:null,resin24
 // £ per kg — from "Stock Take July 2026" management valuation (Scott Bader pricing)
 const COSTKG={csm300:2.80,csm450:2.80,csm600:2.80,csm900:2.80,wr800:2.81,resin2420:3.46,r489pa:3.95,gelcoat:4.93,catalyst:null};
 function costOf(name){ const id=matchType(name); return (id&&COSTKG[id]!=null)?COSTKG[id]:0; }
+/* default unit prices from Stock Take July 2026 (editable per item) — first keyword match wins */
+const PRICELIST=[
+ {kw:'crestomer',p:9.27},{kw:'crestamould',p:3.95},{kw:'crestamold',p:3.95},
+ {kw:'fireguard',p:8.52},{kw:'geltint',p:6.25},{kw:'topcoat',p:6.25},
+ {kw:'acetone',p:324},{kw:'catalyst',p:5.55},{kw:'hardener',p:5.55},{kw:'mek',p:575},
+ {kw:'green board',p:80},{kw:'greenboard',p:80},{kw:'white board',p:36},{kw:'whiteboard',p:36},
+ {kw:'melamine',p:42},{kw:'chipboard',p:25.7},{kw:'walnut',p:75},{kw:'oak',p:110},
+ {kw:'plywood',p:28.7},{kw:'ply',p:28.7},{kw:'mdf',p:42},{kw:'foam',p:30.6},
+ {kw:'orca',p:213.17},{kw:'hypalon',p:60},{kw:'treadmaster',p:170.86},{kw:'primer',p:30.5},
+ {kw:'fuel hose',p:10.18},{kw:'water hose',p:3.3},{kw:'sanitation',p:5.44},{kw:'ducting',p:49.34},{kw:'hose',p:20.29}
+];
+function defaultCost(desc){ const id=matchType(desc); if(id&&COSTKG[id]!=null)return COSTKG[id];
+ const s=String(desc||'').toLowerCase(); for(const r of PRICELIST){ if(s.indexOf(r.kw)>=0)return r.p; } return null; }
+function effCost(o){ const c=parseFloat(o.cost); if(o.cost!==''&&o.cost!=null&&!isNaN(c))return c; const d=defaultCost(o.desc); return d!=null?d:0; }
+function updateCostHint(){ const el=document.getElementById('f_cost'), hint=document.getElementById('f_cost_hint'); if(!el)return;
+ const d=defaultCost(val('f_desc')); if(d!=null){ el.placeholder=d+' (default)'; if(hint)hint.textContent='Blank uses the July‑2026 price of £'+d+' — type to override.'; }
+ else { el.placeholder='0.00'; if(hint)hint.textContent=''; } }
 /* ---------- management valuation snapshot (Stock Take July 2026) ---------- */
 const STOCKVAL={date:'July 2026',total:1936991,areas:[
  {n:'WIP (boats in build)',v:940704},{n:'Boats, Trailers & Engines',v:527815},{n:'Main Store (Connx)',v:282110},
@@ -952,7 +974,7 @@ function openAdd(){ editingRowId=null; document.getElementById('sheetTitle').tex
  ['f_desc','f_qty','f_cost','f_loc','f_loc_other','f_item','f_batch','f_mfd','f_expiry','f_cond','f_spec'].concat(PROPF).forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
  document.getElementById('f_cat').value=(CATS.some(c=>c.id===cur)?cur:(CATS.some(c=>c.id===takeSec)?takeSec:'grp'));
  document.getElementById('delBtn').classList.add('hide'); document.getElementById('moreWrap').classList.add('hide');
- setLoc(''); onCatChange(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
+ setLoc(''); onCatChange(); updateCostHint(); openSheet(); setTimeout(()=>document.getElementById('f_desc').focus(),250); }
 function openEdit(rowId){ const o=data.find(x=>x.rowId===rowId); if(!o)return; editingRowId=rowId;
  document.getElementById('sheetTitle').textContent='Edit item';
  document.getElementById('f_cat').value=o.cat||'grp';
@@ -962,7 +984,7 @@ function openEdit(rowId){ const o=data.find(x=>x.rowId===rowId); if(!o)return; e
  document.getElementById('f_cond').value=o.cond||''; document.getElementById('f_spec').value=o.spec||''; document.getElementById('f_cost').value=o.cost||'';
  PROPF.forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
  document.getElementById('delBtn').classList.remove('hide'); document.getElementById('moreWrap').classList.remove('hide');
- onCatChange(); openSheet(); }
+ onCatChange(); updateCostHint(); openSheet(); }
 function toggleMore(){ document.getElementById('moreWrap').classList.toggle('hide'); }
 function openSheet(){ document.getElementById('scrim').classList.add('show'); document.getElementById('sheet').classList.add('show'); }
 function closeSheet(){ document.getElementById('scrim').classList.remove('show'); document.getElementById('sheet').classList.remove('show'); }
