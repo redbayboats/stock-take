@@ -712,7 +712,7 @@ async function doExport(){
  }); }); }
  const now=new Date(), yr=now.getFullYear();
  let mName=MONTHS[now.getMonth()]; const fm=MONTHS.find(m=>name.toLowerCase().indexOf(m.toLowerCase())>=0); if(fm)mName=fm;
- if(sum){ try{ sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr; sum.getRow(3).getCell(2).value=yr+' - '+mName; }catch(e){} }
+ if(sum){ try{ sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr; sum.getRow(2).getCell(2).value=mName; }catch(e){} }
  const extra=(id,title)=>{ if(!sel.has(id))return; const its=pick(id); if(!its.length)return; const ws=wb.addWorksheet(title); ws.addRow([title+' — '+yr]); ws.addRow([]); ws.addRow(['Description','Item no.','Batch','Location','Condition','Qty','Unit cost','Value']); its.forEach(o=>{ const q=n(o.rem),c=effCost(o); ws.addRow([o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',q,c||'',q*c||'']); }); };
  extra('prop','Propellers'); extra('hw','Hardware & fittings'); extra('cons','Consumables & PPE');
  try{ if(wb.calcProperties) wb.calcProperties.fullCalcOnLoad=true; }catch(e){}
