@@ -717,9 +717,8 @@ async function doExport(){
    // 2. build the new month column: carry July forward, override the three app-tracked areas
    const augCol=[]; for(let r=1;r<=21;r++){ augCol[r-1]=(r>=4&&r<=20)?unwrap(sum.getRow(r).getCell(2).value):null; }
    augCol[1]=mName; augCol[2]=yr;
-   if(sel.has('tube')) augCol[8]=tubA;                    // row 9  Tubing / Tube stock
-   if(sel.has('grp')||sel.has('chem')) augCol[9]=grpA;    // row 10 GRP stores
-   if(sel.has('timber')) augCol[10]=woodA;                // row 11 Window & Wood
+   // NOTE: app counts rolls/drums, accountant values in kg — so we carry the prior £ figures forward
+   // (the physical stock take lives on the GRP/WoodStock/Tubers detail sheets). Values updated by hand or once kg pack-sizes are set.
    // 3. insert it as the next column (C) — everything from Nov-2025 rightward just shifts across, untouched
    sum.spliceColumns(3,0,augCol);
    // 4. re-align the TOTALS row across all columns after the shift
