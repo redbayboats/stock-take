@@ -721,6 +721,7 @@ async function doExport(){
    for(let r=4;r<=21;r++){ const src=sum.getRow(r).getCell(3), dst=sum.getRow(r).getCell(2); if(src&&src.style) dst.style=src.style; }
    sum.getRow(2).getCell(2).value=null; const nb=sum.getRow(3).getCell(2); nb.value=new Date(yr, MONTHS.indexOf(mName), 15, 12); nb.numFmt='mmm-yy';
    sum.getRow(2).getCell(3).value=null; const pb=sum.getRow(3).getCell(3); pb.value=new Date(yr, 6, 15, 12); pb.numFmt='mmm-yy';
+   sum.getColumn(2).width = sum.getColumn(3).width || 14;   // widen new column to match its neighbour (avoid ###### )
    // 4. re-align the TOTALS row across all columns after the shift
    const last=sum.columnCount; for(let c=2;c<=last;c++){ const L=sum.getColumn(c).letter; sum.getRow(21).getCell(c).value={formula:`SUM(${L}4:${L}20)`}; }
    sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr;
