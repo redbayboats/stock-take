@@ -406,11 +406,15 @@ const CONFIG = {
 const GRAPH='https://graph.microsoft.com/v1.0';
 const SCOPES=['Files.ReadWrite.All','User.Read'];
 const CATS=[
- {id:'grp',n:'Fibreglass & Resin'},{id:'chem',n:'Chemicals'},{id:'tube',n:'Tube materials'},{id:'timber',n:'Timber & sheet'},
- {id:'hw',n:'Hardware & fittings'},{id:'eng',n:'Engines & major'},{id:'prop',n:'Propellers'},{id:'cons',n:'Consumables & PPE'}
+ {id:'grp',n:'GRP'},{id:'chem',n:'Chemicals'},{id:'timber',n:'Wood'},{id:'tube',n:'Tube foams'},{id:'prop',n:'Propellers'}
 ];
 const NAME2ID={},ID2NAME={}; CATS.forEach(c=>{NAME2ID[c.n.toLowerCase()]=c.id;ID2NAME[c.id]=c.n});
-NAME2ID['fibreglass']='grp'; NAME2ID['fiberglass']='grp'; NAME2ID['fibreglassresin']='grp'; NAME2ID['chemical']='chem'; NAME2ID['chemicals']='chem';
+// aliases so previously-saved category names still map to the 5 sections
+NAME2ID['fibreglass & resin']='grp'; NAME2ID['fibreglass']='grp'; NAME2ID['fiberglass']='grp'; NAME2ID['fibreglassresin']='grp'; NAME2ID['fibreglass&resin']='grp';
+NAME2ID['chemical']='chem'; NAME2ID['chemicals']='chem';
+NAME2ID['timber & sheet']='timber'; NAME2ID['timber']='timber'; NAME2ID['timber&sheet']='timber'; NAME2ID['wood']='timber';
+NAME2ID['tube materials']='tube'; NAME2ID['tube']='tube'; NAME2ID['tubes']='tube'; NAME2ID['tube foams']='tube'; NAME2ID['foam']='tube';
+NAME2ID['propellers']='prop'; NAME2ID['props']='prop'; NAME2ID['propeller']='prop';
 const SECT_COLOR={grp:'#E34721',chem:'#7A4EA8',tube:'#2E6B8A',timber:'#8A6D3B',hw:'#5B5B55',eng:'#2E6B3E',prop:'#B8791F',cons:'#9A9A94'};
 const COLS=['RowId','Category','Description','ItemNo','Batch','QtyReceived','QtyRemaining','DateManufactured','ExpiryDate','Location','Condition','Spec','UnitCost'];
 const COL2KEY={RowId:'rowId',Category:'catName',Description:'desc',ItemNo:'item',Batch:'batch',QtyReceived:'recv',QtyRemaining:'rem',DateManufactured:'mfd',ExpiryDate:'expiry',Location:'loc',Condition:'cond',Spec:'spec',UnitCost:'cost'};
@@ -727,7 +731,7 @@ async function doExport(){
    sum.getRow(1).getCell(1).value='Stock Summary '+mName+' '+yr;
  }catch(e){ console.warn('summary',e); } }
  const extra=(id,title)=>{ if(!sel.has(id))return; const its=pick(id); if(!its.length)return; const ws=wb.addWorksheet(title); ws.addRow([title+' — '+yr]); ws.addRow([]); ws.addRow(['Description','Item no.','Batch','Location','Condition','Qty','Unit cost','Value']); its.forEach(o=>{ const q=n(o.rem),c=effCost(o); ws.addRow([o.desc||'',o.item||'',o.batch||'',o.loc||'',o.cond||'',q,c||'',q*c||'']); }); };
- extra('prop','Propellers'); extra('hw','Hardware & fittings'); extra('cons','Consumables & PPE');
+ extra('prop','Propellers');
  try{ if(wb.calcProperties) wb.calcProperties.fullCalcOnLoad=true; }catch(e){}
  const out=await wb.xlsx.writeBuffer();
  downloadBuf(out, name+'.xlsx');
@@ -1110,9 +1114,6 @@ function toCat(v,def){ if(v==null||v==='')return def; const n=normH(v); if(NAME2
  if(/tube|hypalon|pvc|neoprene|foam/.test(n))return'tube';
  if(/timber|ply|wood|sheet|board|mdf|melamine|oak/.test(n))return'timber';
  if(/propeller|\bprop\b/.test(n))return'prop';
- if(/hard|fitting|bolt|screw|fasten|nut|washer|cleat/.test(n))return'hw';
- if(/engine|motor|drive|outboard|sterndrive/.test(n))return'eng';
- if(/consum|ppe|glove|tape/.test(n))return'cons';
  return def; }
 
 async function impParse(input){ const f=input.files&&input.files[0]; if(!f)return;
