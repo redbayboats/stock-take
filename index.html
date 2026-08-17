@@ -629,7 +629,7 @@ function renderSide(){
  const total=data.length;
  const nav=(id,label)=>`<button class="snav ${cur===id?'on':''}" onclick="setCur('${id}')">${label}</button>`;
  let h=`<div class="sh">Overview</div>`+nav('dash','📊 Dashboard');
- h+=`<div class="sh">Finance</div>`+nav('value','💷 Stock value')+nav('orders','🚤 Order book');
+ h+=`<div class="sh">Finance</div>`+nav('value','💷 Stock value')+nav('orders','🚤 Order book')+nav('report','📈 Usage report');
  h+=`<div class="sh">Stock</div>`+nav('usage','🧵 Usage')+nav('mats','📦 Materials')+nav('store','🗺️ Storage map');
  h+=`<div class="sh">Sections</div>`;
  h+=`<button class="snav ${cur==='all'?'on':''}" onclick="setCur('all')">All sections <span class="cnt">${total}</span></button>`;
@@ -670,14 +670,55 @@ function cardsFor(sec,q,showHead){
    ${stepper(o,false)}</div>`;
  }).join('');
 }
+let repMonth='';
+function setRepMonth(m){ repMonth=(repMonth===m?'':m); render(); }
+function exportMovesCsv(){
+ const c=s=>{ s=(s==null?'':String(s)); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+ const head=['Date','Type','Item','Category','Qty','Reference','Person','Note'];
+ const lines=[head.join(',')].concat(moves.slice().sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))).map(m=>[m.date,m.type,m.item,m.cat,m.qty,m.ref,m.person,m.note].map(c).join(',')));
+ const blob=new Blob(["\ufeff"+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='RBB movements '+new Date().toISOString().slice(0,10)+'.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},1500);
+ setSync('ok','Movements exported ('+moves.length+' lines)');
+}
+function renderReport(){
+ const wrap=document.getElementById('list');
+ const isLu=m=>String(m.note||'').indexOf('lay-up')===0;
+ const isUse=m=>String(m.type||'').toLowerCase()==='usage'||Number(m.qty)<0;
+ const use=moves.filter(isUse);
+ if(!use.length){ wrap.innerHTML=`<div class="secttl">Usage report</div><div class="panel"><div class="dempty">No usage logged yet — this report builds itself as usage is recorded.</div></div>`; return; }
+ const ymOf=m=>String(m.date||'').slice(0,7);
+ const ml=ym=>{const p=ym.split('-'); return (['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][(+p[1]||1)-1])+' '+p[0];};
+ const months={};
+ use.forEach(m=>{ const k=ymOf(m); if(!/^\d{4}-\d{2}$/.test(k))return; const M=(months[k]=months[k]||{n:0,kg:0,cost:0,units:0,hulls:new Set()}); M.n++; if(isLu(m)){ const q=Math.abs(Number(m.qty)||0); M.kg+=q; M.cost+=q*costOf(m.item); } else M.units+=Math.abs(Number(m.qty)||0); if(m.ref)M.hulls.add(m.ref); });
+ const mk=Object.keys(months).sort().reverse();
+ const shown=repMonth?use.filter(m=>ymOf(m)===repMonth):use;
+ const hulls={}; shown.forEach(m=>{ const k=m.ref||'—'; const H=(hulls[k]=hulls[k]||{n:0,kg:0,cost:0}); H.n++; if(isLu(m)){ const q=Math.abs(Number(m.qty)||0); H.kg+=q; H.cost+=q*costOf(m.item); } });
+ const hk=Object.keys(hulls).sort((a,b)=>hulls[b].kg-hulls[a].kg);
+ const mats={}; shown.forEach(m=>{ const k=m.item||'?'; const T=(mats[k]=mats[k]||{n:0,q:0,cost:0,lu:isLu(m)}); T.n++; const q=Math.abs(Number(m.qty)||0); T.q+=q; if(isLu(m))T.cost+=q*costOf(m.item); });
+ const matk=Object.keys(mats).sort((a,b)=>mats[b].q-mats[a].q);
+ const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
+ const nowYm=new Date().toISOString().slice(0,7); const cm=months[nowYm]||{n:0,kg:0,cost:0,hulls:new Set()};
+ wrap.innerHTML=`<div class="secttl">Usage report <span class="scount">${use.length} usage lines</span></div>
+  <div class="usageactions" style="grid-template-columns:1fr"><button class="uact" onclick="exportMovesCsv()">⬇ Download the full movements log (CSV)</button></div>
+  <div class="kpis">${kpi(Math.round(cm.kg)+' kg','Laid up this month')}${kpi(gbpF(cm.cost),'Lay-up £ this month')}${kpi(cm.n,'Usage lines this month')}${kpi(cm.hulls.size,'Hulls this month')}</div>
+  <div class="secttl">Month by month <span class="scount">${repMonth?'showing '+ml(repMonth)+' below — tap the month again to clear':'tap a month to filter the tables below'}</span></div>
+  <div class="tscroll"><table class="tbl"><thead><tr><th>Month</th><th>Lines</th><th>Fibreglass kg</th><th>Lay-up £</th><th>Other units</th><th>Hulls</th></tr></thead><tbody>
+  ${mk.map(k=>`<tr onclick="setRepMonth('${k}')" style="${repMonth===k?'background:#FBF0DA':''}"><td class="desc">${ml(k)}</td><td>${months[k].n}</td><td>${Math.round(months[k].kg)}</td><td>${gbpF(months[k].cost)}</td><td>${Math.round(months[k].units)}</td><td>${months[k].hulls.size}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="dcols" style="margin-top:16px">
+   <div class="panel"><h3>By hull${repMonth?' — '+ml(repMonth):''} <span class="cnt">${hk.length}</span></h3><div class="pbody">${hk.map(k=>`<div class="drow"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines${hulls[k].kg?' · '+Math.round(hulls[k].kg)+' kg':''}</div></div><span class="cond">${gbpF(hulls[k].cost)}</span></div>`).join('')}</div></div>
+   <div class="panel"><h3>By material${repMonth?' — '+ml(repMonth):''} <span class="cnt">${matk.length}</span></h3><div class="pbody">${matk.map(k=>`<div class="drow"><div class="m"><div class="t">${esc(k)}</div><div class="s">${mats[k].n} lines</div></div><span class="cond">${Math.round(mats[k].q)}${mats[k].lu?' kg · '+gbpF(mats[k].cost):''}</span></div>`).join('')}</div></div>
+  </div>`;
+}
 function render(){
  renderSide();
  const sel=document.getElementById('catSel');
- if(sel){ if(sel.options.length!==CATS.length+8){ sel.innerHTML=`<option value="home">🏠 Home</option><option value="dash">Dashboard</option><option value="value">Stock value</option><option value="orders">Order book</option><option value="usage">Usage</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
+ if(sel){ if(sel.options.length!==CATS.length+9){ sel.innerHTML=`<option value="home">🏠 Home</option><option value="dash">Dashboard</option><option value="value">Stock value</option><option value="orders">Order book</option><option value="usage">Usage</option><option value="report">Usage report</option><option value="mats">Materials</option><option value="store">Storage map</option><option value="all">All sections</option>`+CATS.map(c=>`<option value="${c.id}">${c.n}</option>`).join(''); } sel.value=cur; }
  if(cur==='dash'){ renderDash(); return; }
  if(cur==='value'){ renderValue(); return; }
  if(cur==='orders'){ renderOrderBook(); return; }
  if(cur==='usage'){ renderUsage(); return; }
+ if(cur==='report'){ renderReport(); return; }
  if(cur==='mats'){ renderMaterials(); return; }
  if(cur==='store'){ renderStorage(); return; }
  if(cur==='home'){ renderHome(); return; }
