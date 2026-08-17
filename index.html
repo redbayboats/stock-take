@@ -948,8 +948,11 @@ function renderUsage(){
  const isLu=m=>String(m.note||'').indexOf('lay-up')===0;
  const kg=m=>Math.abs(Number(m.qty)||0);
  const bat=m=>{const x=String(m.note||'').split('batch ')[1]; return x?x.trim():'';};
- const lu=moves.filter(isLu);
- if(!lu.length){ wrap.innerHTML=`<div class="secttl">Usage — materials laid up</div><div class="panel"><div class="dempty">No usage logged yet. Use <b>Actions → Import a fibreglass lay-up sheet</b>, or <b>Actions → Usage</b> to record stock going out.</div></div>`; return; }
+ const isUse=m=>String(m.type||'').toLowerCase()==='usage'||Number(m.qty)<0;
+ const use=moves.filter(isUse);
+ const lu=use.filter(isLu);
+ const other=use.filter(m=>!isLu(m));
+ if(!use.length){ wrap.innerHTML=`<div class="secttl">Usage — record &amp; review</div><div class="usageactions"><button class="uact primary" onclick="openMovement('Usage')">➕ Record usage</button><button class="uact" onclick="luOpen()">🧵 Import lay-up sheet</button><button class="uact" onclick="scanOpen('Usage')">📄 Scan usage sheet</button></div><div class="panel"><div class="dempty">No usage logged yet. Use <b>Record usage</b> or <b>Import a lay-up sheet</b>.</div></div>`; return; }
  const ym=new Date().toISOString().slice(0,7);
  const totKg=Math.round(lu.reduce((s,m)=>s+kg(m),0));
  const monthKg=Math.round(lu.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym?kg(m):0),0));
@@ -964,23 +967,23 @@ function renderUsage(){
  const batches={}; lu.forEach(m=>{const b=bat(m); if(!b)return; (batches[b]=batches[b]||{kg:0,n:0,hulls:new Set(),mats:new Set()}); batches[b].kg+=kg(m); batches[b].n++; batches[b].hulls.add(m.ref||'—'); batches[b].mats.add(m.item||'?');});
  const batchKeys=Object.keys(batches).sort((a,b)=>batches[b].kg-batches[a].kg);
  const stockByBatch={}; data.forEach(o=>{ if(o.batch){ String(o.batch).split(/[\s,;/]+/).forEach(bb=>{ bb=bb.trim(); if(bb)stockByBatch[bb]=o; }); } });
- let shown=lu.slice();
- if(usageFilter){ if(usageFilter.type==='hull')shown=lu.filter(m=>(m.ref||'—')===usageFilter.val);
-  else if(usageFilter.type==='batch')shown=lu.filter(m=>bat(m)===usageFilter.val);
-  else if(usageFilter.type==='mat')shown=lu.filter(m=>(m.item||'?')===usageFilter.val); }
+ let shown=use.slice();
+ if(usageFilter){ if(usageFilter.type==='hull')shown=use.filter(m=>(m.ref||'—')===usageFilter.val);
+  else if(usageFilter.type==='batch')shown=use.filter(m=>bat(m)===usageFilter.val);
+  else if(usageFilter.type==='mat')shown=use.filter(m=>(m.item||'?')===usageFilter.val); }
  const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const hrow=k=>`<div class="drow" onclick="setUsageFilter('hull','${esc(k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='hull'&&usageFilter.val===k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines · ${gbp(hulls[k].cost)}</div></div><span class="cond">${Math.round(hulls[k].kg)} kg</span></div>`;
  const mrow2=x=>`<div class="drow" onclick="setUsageFilter('mat','${esc(x.k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='mat'&&usageFilter.val===x.k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/matMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg · ${gbp(matCost[x.k]||0)}</span></div>`;
  const brow=b=>{const st=stockByBatch[b]; return `<div class="drow" onclick="setUsageFilter('batch','${esc(b)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='batch'&&usageFilter.val===b?'background:#FBF0DA':''}"><div class="m"><div class="t">batch ${esc(b)}${st?' <span class="cond">● in stock</span>':''}</div><div class="s">${batches[b].hulls.size} hull(s) · ${batches[b].n} lines · ${esc([...batches[b].mats].slice(0,3).join(', '))}</div></div><span class="cond">${Math.round(batches[b].kg)} kg</span></div>`;};
- const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${kg(m)} kg</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
+ const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; const luRow=isLu(m); const amt=luRow?`${kg(m)} kg`:`${kg(m)}`; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${amt}${luRow?'':` <span class="cond">${esc(m.cat||'other')}</span>`}</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
  const flabel=usageFilter?(usageFilter.type==='hull'?'Hull '+usageFilter.val:usageFilter.type==='batch'?'Batch '+usageFilter.val:'Material '+usageFilter.val):'';
  const shownKg=Math.round(shown.reduce((s,m)=>s+kg(m),0));
  wrap.innerHTML=`<div class="secttl">Usage — record &amp; review</div>
   <div class="usageactions"><button class="uact primary" onclick="openMovement('Usage')">➕ Record usage</button><button class="uact" onclick="luOpen()">🧵 Import lay-up sheet</button><button class="uact" onclick="scanOpen('Usage')">📄 Scan usage sheet</button></div>
-  <div class="kpis">${kpi(lu.length,'Lay-up lines')}${kpi(totKg+' kg','Material used')}${kpi(gbp(totCost),'Material cost')}${kpi(hullKeys.length,'Hulls')}</div>
-  <div class="secttl">${flabel?`Showing: <span style="color:var(--org)">${esc(flabel)}</span>`:'Everything used'} <span class="scount">${shown.length} lines · ${shownKg} kg</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
+  <div class="kpis">${kpi(use.length,'Usage lines')}${kpi(totKg+' kg','Fibreglass laid up')}${kpi(gbp(totCost),'Lay-up cost')}${kpi(hullKeys.length,'Hulls')}</div>
+  <div class="secttl">${flabel?`Showing: <span style="color:var(--org)">${esc(flabel)}</span>`:'Everything going out'} <span class="scount">${shown.length} lines${other.length?` · incl. ${other.length} non-lay-up`:''}</span>${usageFilter?`<button class="mini" style="border-color:#ccc;color:#333;margin-left:10px" onclick="clearUsageFilter()">✕ clear filter</button>`:''}</div>
   <div class="panel"><div class="pbody" style="max-height:none">${shown.map(urow).join('')}</div></div>
-  <div class="secttl">Drill down — by hull, material or batch</div>
+  <div class="secttl">Fibreglass lay-up — drill down by hull, material or batch</div>
   <div class="dcols">
    <div class="panel"><h3>By hull (HIN) <span class="cnt">${hullKeys.length}</span></h3><div class="pbody">${hullKeys.map(hrow).join('')}</div></div>
    <div class="panel"><h3>By material <span class="cnt">kg</span></h3><div class="pbody">${matList.map(mrow2).join('')}</div></div>
