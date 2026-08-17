@@ -797,8 +797,8 @@ const MATTYPES=[
  {id:'gelcoat',label:'Gelcoat',unit:'drum'},
  {id:'catalyst',label:'Catalyst',unit:'drum'}
 ];
-// kg per roll/drum — fill these when Joseph provides them; nulls show "set weight"
-const PACKKG={csm300:null,csm450:null,csm600:null,csm900:null,wr800:null,resin2420:25,r489pa:25,gelcoat:null,catalyst:null};
+// kg per counted unit (roll/drum/tin) — estimates back-calculated from the July valuation; editable per item
+const PACKKG={csm300:30,csm450:30,csm600:30,csm900:30,wr800:30,resin2420:25,r489pa:25,gelcoat:20,catalyst:25};
 // £ per kg — from "Stock Take July 2026" management valuation (Scott Bader pricing)
 const COSTKG={csm300:2.80,csm450:2.80,csm600:2.80,csm900:2.80,wr800:2.81,resin2420:3.46,r489pa:3.95,gelcoat:4.93,catalyst:null};
 function costOf(name){ const id=matchType(name); return (id&&COSTKG[id]!=null)?COSTKG[id]:0; }
@@ -839,9 +839,22 @@ function matchWood(desc){ const s=String(desc||'').toLowerCase(); if(!s.trim())r
  if(/ply/.test(s))return near('PLY');
  if(/oak/.test(s))return WOOD.find(w=>w.t==='OAK LENGTHS');
  return null; }
-function defaultCost(desc){ const id=matchType(desc); if(id&&COSTKG[id]!=null)return COSTKG[id];
- const w=matchWood(desc); if(w)return w.p;
- const s=String(desc||'').toLowerCase(); for(const r of PRICELIST){ if(s.indexOf(r.kw)>=0)return r.p; } return null; }
+const round2=x=>Math.round(x*100)/100;
+// defaultCost = £ value of ONE COUNTED STOCK UNIT (per roll/sheet/drum/tin) for stock valuation
+function defaultCost(desc){
+ const w=matchWood(desc); if(w)return w.p;                              // wood: price already per sheet
+ const s=String(desc||'').toLowerCase();
+ if(/acetone/.test(s))return 324;                                       // per drum
+ if(/\bmek\b|methylethyl|ketone/.test(s))return 575;                    // per barrel
+ if(/catalyst|hardener/.test(s))return round2(25*5.55);                 // 25 kg drum
+ const id=matchType(desc);                                              // matt/WR/gelcoat/resin/489: kg-per-roll × £/kg
+ if(id&&COSTKG[id]!=null)return round2((PACKKG[id]||30)*COSTKG[id]);
+ if(/\bgc |gt600|gt-600|flocoat|flowcoat|fc1h|\bgel /.test(s))return round2(20*4.93);   // gelcoat tins ~20 kg
+ if(/\btc |topcoat/.test(s))return round2(20*6.25);
+ if(/crestomer/.test(s))return round2(20*9.27);
+ if(/crestamould|crestamold/.test(s))return round2(20*3.95);
+ for(const r of PRICELIST){ if(s.indexOf(r.kw)>=0)return r.p; }         // remaining (hose etc) per unit
+ return null; }
 function effCost(o){ const c=parseFloat(o.cost); if(o.cost!==''&&o.cost!=null&&!isNaN(c))return c; const d=defaultCost(o.desc); return d!=null?d:0; }
 function updateCostHint(){ const el=document.getElementById('f_cost'), hint=document.getElementById('f_cost_hint'); if(!el)return;
  const d=defaultCost(val('f_desc')); if(d!=null){ el.placeholder=d+' (default)'; if(hint)hint.textContent='Blank uses the July‑2026 price of £'+d+' — type to override.'; }
