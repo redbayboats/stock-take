@@ -382,7 +382,7 @@ button:focus-visible,.snav:focus-visible,.tchip:focus-visible{outline:2px solid 
   <div class="shh"><span class="t" id="meTitle">Edit record</span><button class="x" onclick="meClose()">✕</button></div>
   <label class="fld"><span class="k">Item / material</span><input id="me_item"></label>
   <div class="two"><label class="fld"><span class="k" id="meQtyLbl">Quantity</span><input id="me_qty" inputmode="decimal"></label><label class="fld"><span class="k">Date</span><input id="me_date" type="date"></label></div>
-  <div class="two"><label class="fld"><span class="k">Hull / reference</span><input id="me_ref"></label><label class="fld"><span class="k">Person</span><input id="me_person" list="staffDl"></label></div>
+  <div class="two"><label class="fld"><span class="k">Hull / reference</span><input id="me_ref"></label><label class="fld"><span class="k">Person</span><input id="me_person" list="staffDl" onchange="expandStaff(this)"></label></div>
   <label class="fld"><span class="k">Note (batch etc.)</span><input id="me_note"></label>
   <button class="save" onclick="saveMoveEdit()">Save changes</button>
   <button class="del" onclick="delMoveEdit()">🗑 Delete this record</button>
@@ -396,7 +396,7 @@ button:focus-visible,.snav:focus-visible,.tchip:focus-visible{outline:2px solid 
     <label class="fld"><span class="k">Date</span><input id="mv_date" type="date"></label>
   </div>
   <label class="fld"><span class="k" id="mvRefLabel">Reference</span><input id="mv_ref"></label>
-  <label class="fld"><span class="k">Person</span><input id="mv_person" list="staffDl"></label>
+  <label class="fld"><span class="k">Person</span><input id="mv_person" list="staffDl" onchange="expandStaff(this)"></label>
   <label class="fld"><span class="k">Note (optional)</span><input id="mv_note"></label>
   <button class="save" id="mvSave" onclick="applyMovement()">Save</button>
 </div>
@@ -1456,6 +1456,15 @@ function parseLayupSheet(text){
   rows.push({desc:mt[0].replace(/\s+/g,' ').trim(),lb:String(lb),kg:String(kg),cat:'grp',date:date||new Date().toISOString().slice(0,10),person:'',batch:batch});
  });
  return rows; }
+const STAFF_NAMES=['Vaidas Markovas','Audrius Voroblevas','Ricardas Seputis','Kieran Kerr','Mark Harris','Michael Eliott','Aidan McNaughton','Michael Watterson','Sylvester Fraczkiewicz','Steve Maher','Eugene Dallat','Paddy Magee','Paddy McCambridge','Niall McLaughlin','Liam McGhee','Shane Black','Cormac Kearns','Daniel Crawford','Jason Bonnar','Eoin Ritson','Cahir McNaughton','Cathan Graham','Benny McNaughton','Eugene Grafton','Joseph McLaughlin'];
+function expandStaff(inp){ const raw=(inp.value||'').trim(); if(!raw||raw.length>14)return;
+ const k=raw.toLowerCase().replace(/[^a-z]/g,''); if(!k)return;
+ let hits=[];
+ if(k.length===2) hits=STAFF_NAMES.filter(n=>{const p=n.toLowerCase().split(' ');return p[0][0]+p[p.length-1][0]===k;});
+ if(!hits.length&&k.length>=3) hits=STAFF_NAMES.filter(n=>n.toLowerCase().split(' ')[0].indexOf(k)===0);
+ if(!hits.length&&k.length===1) hits=STAFF_NAMES.filter(n=>n.toLowerCase()[0]===k);
+ if(hits.length===1&&hits[0]!==raw) inp.value=hits[0];
+}
 function scanMatList(){ return scanKind==='layup'
  ? ['Gelcoat 1st','Gelcoat 2nd','Gelcoat 3rd','489PA','2.420PA Resin','300 CSM BP','450 CSM','600 CSM','800 WR','900 CSM','2x900 CSM','Crestomer','Coremat 4mm','Flocoat','Topcoat']
  : ['12mm plywood','18mm plywood','19mm plywood','25mm plywood','5mm plywood','6mm plywood','18mm MDF','19mm chipboard','Melamine','Green board','White board','Oak','Teak & holly','Lexan']; }
@@ -1465,12 +1474,12 @@ function scanRowHtml(r){ r=Object.assign({desc:'',qty:'1',hull:'',person:'',date
  if(scanKind==='wood') return `<div class="scanrow">
    <div class="two"><label class="fld"><span class="k">Wood / board</span><input class="s_desc" list="scanDl" value="${esc(r.desc)}" oninput="woodSnapUI(this)"></label><label class="fld" style="flex:0 0 84px"><span class="k">Qty</span><input class="s_qty" inputmode="numeric" value="${esc(r.qty)}"></label></div>
    <label class="fld"><span class="k">Deduct from stock line</span><select class="fsel s_match">${matchOpts(r.match,'— just log it (no stock deduction)')}</select></label>
-   <div class="two"><label class="fld"><span class="k">Hull / job</span><input class="s_hull" value="${esc(r.hull)}"></label><label class="fld"><span class="k">Taken by</span><input class="s_person" list="staffDl" value="${esc(r.person)}"></label></div>
+   <div class="two"><label class="fld"><span class="k">Hull / job</span><input class="s_hull" value="${esc(r.hull)}"></label><label class="fld"><span class="k">Taken by</span><input class="s_person" list="staffDl" onchange="expandStaff(this)" value="${esc(r.person)}"></label></div>
    <label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label>
    <button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button></div>`;
  if(scanKind==='layup') return `<div class="scanrow">
    <div class="two"><label class="fld"><span class="k">Material</span><input class="s_desc" list="scanDl" value="${esc(r.desc)}"></label><label class="fld" style="flex:0 0 84px"><span class="k">Weight lb</span><input class="s_lb" inputmode="decimal" value="${esc(r.lb)}" oninput="const k=this.closest('.scanrow').querySelector('.s_kg'); const v=parseFloat(this.value); k.value=isNaN(v)?'':(Math.round(v*0.45359237*10)/10)"></label><label class="fld" style="flex:0 0 84px"><span class="k">= kg</span><input class="s_kg" inputmode="decimal" value="${esc(r.kg)}"></label></div>
-   <div class="two"><label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label><label class="fld"><span class="k">Person</span><input class="s_person" list="staffDl" value="${esc(r.person)}"></label></div>
+   <div class="two"><label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label><label class="fld"><span class="k">Person</span><input class="s_person" list="staffDl" onchange="expandStaff(this)" value="${esc(r.person)}"></label></div>
    <label class="fld"><span class="k">Batch no.</span><input class="s_batch" value="${esc(r.batch)}"></label>
    <button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button></div>`;
  return `<div class="scanrow">
