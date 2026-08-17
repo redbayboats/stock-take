@@ -349,6 +349,16 @@ button:focus-visible,.snav:focus-visible,.tchip:focus-visible{outline:2px solid 
   </div>
 </div>
 
+<div class="scrim" id="meScrim" onclick="meClose()"></div>
+<div class="sheet" id="meSheet">
+  <div class="shh"><span class="t" id="meTitle">Edit record</span><button class="x" onclick="meClose()">✕</button></div>
+  <label class="fld"><span class="k">Item / material</span><input id="me_item"></label>
+  <div class="two"><label class="fld"><span class="k" id="meQtyLbl">Quantity</span><input id="me_qty" inputmode="decimal"></label><label class="fld"><span class="k">Date</span><input id="me_date" type="date"></label></div>
+  <div class="two"><label class="fld"><span class="k">Hull / reference</span><input id="me_ref"></label><label class="fld"><span class="k">Person</span><input id="me_person"></label></div>
+  <label class="fld"><span class="k">Note (batch etc.)</span><input id="me_note"></label>
+  <button class="save" onclick="saveMoveEdit()">Save changes</button>
+  <button class="del" onclick="delMoveEdit()">🗑 Delete this record</button>
+</div>
 <div class="scrim" id="mvScrim" onclick="closeMovement()"></div>
 <div class="sheet" id="mvSheet">
   <div class="shh"><span class="t" id="mvTitle">Movement</span><button class="x" onclick="closeMovement()">✕</button></div>
@@ -990,7 +1000,7 @@ function renderUsage(){
  const hrow=k=>`<div class="drow" onclick="setUsageFilter('hull','${esc(k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='hull'&&usageFilter.val===k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(k)}</div><div class="s">${hulls[k].n} lines · ${gbp(hulls[k].cost)}</div></div><span class="cond">${Math.round(hulls[k].kg)} kg</span></div>`;
  const mrow2=x=>`<div class="drow" onclick="setUsageFilter('mat','${esc(x.k)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='mat'&&usageFilter.val===x.k?'background:#FBF0DA':''}"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/matMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg · ${gbp(matCost[x.k]||0)}</span></div>`;
  const brow=b=>{const st=stockByBatch[b]; return `<div class="drow" onclick="setUsageFilter('batch','${esc(b)}')" style="cursor:pointer;${usageFilter&&usageFilter.type==='batch'&&usageFilter.val===b?'background:#FBF0DA':''}"><div class="m"><div class="t">batch ${esc(b)}${st?' <span class="cond">● in stock</span>':''}</div><div class="s">${batches[b].hulls.size} hull(s) · ${batches[b].n} lines · ${esc([...batches[b].mats].slice(0,3).join(', '))}</div></div><span class="cond">${Math.round(batches[b].kg)} kg</span></div>`;};
- const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; const luRow=isLu(m); const amt=luRow?`${kg(m)} kg`:`${kg(m)}`; return `<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${amt}${luRow?'':` <span class="cond">${esc(m.cat||'other')}</span>`}</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
+ const urow=m=>{const b=bat(m); const st=b&&stockByBatch[b]; const luRow=isLu(m); const amt=luRow?`${kg(m)} kg`:`${kg(m)}`; return `<div class="drow" onclick="openMoveEdit('${esc(m.id)}')" style="cursor:pointer" title="Tap to edit or delete this record"><div class="m"><div class="t">${esc(m.item||'?')} — ${amt}${luRow?'':` <span class="cond">${esc(m.cat||'other')}</span>`}</div><div class="s">${esc(m.date||'')} · <span class="batchlink" onclick="event.stopPropagation();setUsageFilter('hull','${esc(m.ref||'—')}')">${esc(m.ref||'—')}</span>${m.person?' · '+esc(m.person):''}${b?` · <span class="batchlink" onclick="event.stopPropagation();setUsageFilter('batch','${esc(b)}')">batch ${esc(b)}</span>`:''}${st?` <span class="cond" style="cursor:pointer" title="Matches stock: ${esc(st.desc)}" onclick="event.stopPropagation();openEdit('${st.rowId}')">● in stock</span>`:''}</div></div><span class="tag out">out</span></div>`;};
  const flabel=usageFilter?(usageFilter.type==='hull'?'Hull '+usageFilter.val:usageFilter.type==='batch'?'Batch '+usageFilter.val:'Material '+usageFilter.val):'';
  const shownKg=Math.round(shown.reduce((s,m)=>s+kg(m),0));
  wrap.innerHTML=`<div class="secttl">Usage — record &amp; review</div>
@@ -1217,10 +1227,53 @@ const MOVE_HEADERS=['MoveId','Date','Type','ItemRowId','Item','Category','Qty','
 let moves=[], movesReady=false, curMoveType='Delivery';
 async function loadMoves(){
  try{ await resolveBook(); const j=await gfetch(`${bookBase()}/tables/${encodeURIComponent(MOVE_TABLE)}/rows?$top=500`);
-  moves=(j.value||[]).map(r=>{const v=r.values[0]||[];return {id:v[0],date:v[1],type:v[2],itemRowId:v[3],item:v[4],cat:v[5],qty:v[6],ref:v[7],person:v[8],note:v[9],balance:v[10]};}).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  moves=(j.value||[]).map(r=>{const v=r.values[0]||[];return {idx:r.index,id:v[0],date:serial2iso(v[1]),type:v[2],itemRowId:v[3],item:v[4],cat:v[5],qty:v[6],ref:v[7],person:v[8],note:v[9],balance:v[10]};}).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
   movesReady=true;
  }catch(e){ moves=[]; }
 }
+function serial2iso(n){ if(typeof n!=='number'||n<20000||n>80000) return n; return new Date(Date.UTC(1899,11,30)+n*86400000).toISOString().slice(0,10); }
+let mvMeta=null, meId=null;
+async function loadMvMeta(){ if(mvMeta)return mvMeta; await resolveBook(); const j=await gfetch(`${bookBase()}/tables/${encodeURIComponent(MOVE_TABLE)}/range?$select=address`); let a=(j&&j.address)||''; const bang=a.lastIndexOf('!'); let sheet=a.slice(0,bang), rng=a.slice(bang+1); if(sheet.startsWith("'")&&sheet.endsWith("'")) sheet=sheet.slice(1,-1).replace(/''/g,"'"); const parts=rng.split(':'); const cs=colRow(parts[0]), ce=colRow(parts[parts.length-1]); mvMeta={sheet:sheet,c1:cs.col,c2:ce.col,dataStart:cs.row+1}; return mvMeta; }
+function mvAddr(md,idx){ const r=md.dataStart+idx; return `${md.c1}${r}:${md.c2}${r}`; }
+function openMoveEdit(id){ const m=moves.find(x=>x.id===id); if(!m)return; if(m.idx==null){ setSync('err','Refresh the app first, then try editing again'); return; } meId=id;
+ document.getElementById('meTitle').textContent='Edit '+String(m.type||'record').toLowerCase();
+ document.getElementById('me_item').value=m.item||'';
+ document.getElementById('meQtyLbl').textContent=(String(m.note||'').indexOf('lay-up')===0?'Quantity (kg)':'Quantity');
+ document.getElementById('me_qty').value=Math.abs(Number(m.qty)||0);
+ document.getElementById('me_date').value=String(m.date||'').slice(0,10);
+ document.getElementById('me_ref').value=m.ref||'';
+ document.getElementById('me_person').value=m.person||'';
+ document.getElementById('me_note').value=m.note||'';
+ document.getElementById('meScrim').classList.add('show'); document.getElementById('meSheet').classList.add('show'); }
+function meClose(){ document.getElementById('meScrim').classList.remove('show'); document.getElementById('meSheet').classList.remove('show'); meId=null; }
+async function saveMoveEdit(){ const m=moves.find(x=>x.id===meId); if(!m){ meClose(); return; }
+ if(!navigator.onLine){ setSync('err','Editing a record needs internet — try again when online'); return; }
+ const absQ=Math.abs(parseFloat(document.getElementById('me_qty').value)||0);
+ const isDel=String(m.type).toLowerCase()==='delivery';
+ const newQty=isDel?absQ:-absQ;
+ const item=document.getElementById('me_item').value.trim();
+ const date=document.getElementById('me_date').value||String(m.date||'').slice(0,10);
+ const ref=document.getElementById('me_ref').value.trim();
+ const person=document.getElementById('me_person').value.trim();
+ const note=document.getElementById('me_note').value.trim();
+ try{
+  if(m.itemRowId){ const o=data.find(x=>x.rowId===m.itemRowId); const dif=newQty-Number(m.qty)||0; if(o&&dif){ commit({op:'delta',rowId:o.rowId,dRem:dif,dRecv:(isDel?dif:0)}); } }
+  const md=await loadMvMeta();
+  const vals=[[m.id,date,m.type,m.itemRowId||'',item,m.cat||'',newQty,ref,person,note,(m.balance==null?'':m.balance)]];
+  await gfetch(wsRangePath(md.sheet,mvAddr(md,m.idx)),{method:'PATCH',body:JSON.stringify({values:vals})});
+  Object.assign(m,{date:date,item:item,qty:newQty,ref:ref,person:person,note:note});
+  moves.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  setSync('ok','Record updated'); meClose(); render();
+ }catch(e){ setSync('err','Update failed: '+e.message); } }
+async function delMoveEdit(){ const m=moves.find(x=>x.id===meId); if(!m){ meClose(); return; }
+ if(!navigator.onLine){ setSync('err','Deleting a record needs internet — try again when online'); return; }
+ if(!confirm('Delete this record? It is removed from the log'+(m.itemRowId?' and the stock quantity is put back':'')+'.'))return;
+ try{
+  if(m.itemRowId){ const o=data.find(x=>x.rowId===m.itemRowId); const q=Number(m.qty)||0; if(o&&q){ commit({op:'delta',rowId:o.rowId,dRem:-q,dRecv:(String(m.type).toLowerCase()==='delivery'?-q:0)}); } }
+  const md=await loadMvMeta();
+  await gfetch(wsRangePath(md.sheet,mvAddr(md,m.idx))+'/delete',{method:'POST',body:JSON.stringify({shift:'Up'})});
+  meClose(); await loadMoves(); setSync('ok','Record deleted'); render();
+ }catch(e){ setSync('err','Delete failed: '+e.message); } }
 async function ensureMoves(){
  if(movesReady)return true;
  await resolveBook();
@@ -1263,7 +1316,7 @@ async function applyMovement(){
  closeMovement();
  setSync(navigator.onLine?'busy':'err',(type==='Usage'?'Usage':'Delivery')+' recorded'+(navigator.onLine?'':' — will sync when online'));
 }
-function mrow(m){ const pos=Number(m.qty)>0; return `<div class="drow"><div class="m"><div class="t">${esc(m.item)||'(item)'}</div><div class="s">${esc(m.date)} · ${esc(m.type)}${m.ref?' · '+esc(m.ref):''}${m.person?' · '+esc(m.person):''}</div></div><span class="tag ${pos?'in':'out'}">${pos?'+':''}${esc(m.qty)}</span></div>`; }
+function mrow(m){ const pos=Number(m.qty)>0; return `<div class="drow" onclick="openMoveEdit('${esc(m.id)}')" style="cursor:pointer" title="Tap to edit or delete this record"><div class="m"><div class="t">${esc(m.item)||'(item)'}</div><div class="s">${esc(m.date)} · ${esc(m.type)}${m.ref?' · '+esc(m.ref):''}${m.person?' · '+esc(m.person):''}</div></div><span class="tag ${pos?'in':'out'}">${pos?'+':''}${esc(m.qty)}</span></div>`; }
 
 /* ---------- scan / upload a delivery note (OCR) ---------- */
 let scanText='', scanRows=[], scanConf=100;
