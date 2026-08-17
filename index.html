@@ -996,7 +996,7 @@ function renderDash(){
  const units=data.reduce((s,o)=>s+(num(o.rem)||0),0);
  const reorder=[...out.map(o=>({o,k:'out'})),...low.map(o=>({o,k:'low'}))];
  const exp=[...expired,...soon].sort((a,b)=>((days(a)==null?1e9:days(a))-(days(b)==null?1e9:days(b))));
- const bySec=CATS.map(c=>{const it=data.filter(o=>o.cat===c.id);return{c,n:it.length,u:it.reduce((s,o)=>s+(num(o.rem)||0),0)};});
+ const bySec=CATS.map(c=>{const it=data.filter(o=>o.cat===c.id);return{c,n:it.length,u:it.reduce((s,o)=>s+(num(o.rem)||0),0),v:it.reduce((s,o)=>s+((num(o.rem)||0)*effCost(o)),0)};});
  const ym=new Date().toISOString().slice(0,7);
  const isLu=m=>String(m.note||'').indexOf('lay-up')===0;
  const inMonth=moves.reduce((s,m)=>s+(String(m.date).slice(0,7)===ym&&Number(m.qty)>0&&!isLu(m)?Number(m.qty):0),0);
@@ -1012,6 +1012,10 @@ function renderDash(){
  const luByMat={}; luMoves.forEach(m=>{const k=m.item||'?';luByMat[k]=(luByMat[k]||0)+Math.abs(Number(m.qty)||0);});
  const luTop=Object.keys(luByMat).map(k=>({k,v:luByMat[k]})).sort((a,b)=>b.v-a.v).slice(0,6);
  const luMax=Math.max(1,...luTop.map(x=>x.v));
+ const countedVal=bySec.reduce((s,x)=>s+x.v,0), maxV=Math.max(1,...bySec.map(x=>x.v));
+ const expiredVal=Math.round([...expired,...soon].reduce((s,o)=>s+((num(o.rem)||0)*effCost(o)),0));
+ const reorderVal=Math.round(reorder.reduce((s,x)=>s+((num(x.o.rem)||0)*effCost(x.o)),0));
+ const luCost=luMoves.reduce((s,m)=>s+Math.abs(Number(m.qty)||0)*costOf(m.item),0), costPerHull=luHulls?Math.round(luCost/luHulls):0;
  const hrow=o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]} · received ${esc(o.recv||'0')}, in stock ${esc(o.rem||'0')}</div></div><span class="tag low">check</span></div>`;
  const kpi=(v,l,cls)=>`<div class="kpi ${cls||''}"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const rrow=(o,k)=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · Qty ${o.rem===''?'—':esc(o.rem)}</div></div><span class="tag ${k}">${k==='out'?'Out':'Low'}</span></div>`;
@@ -1020,21 +1024,23 @@ function renderDash(){
   <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(expired.length,'Expired',expired.length?'bad':'')}</div>
   <div class="secttl">Business at a glance <span class="scount">July 2026</span></div>
   <div class="kpis"><div class="kpi" style="cursor:pointer" onclick="setCur('value')"><div class="v">£${(STOCKVAL.total/1e6).toFixed(2)}M</div><div class="l">Total stock value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(obVal/1e6).toFixed(2)}M</div><div class="l">Order book</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(wipVal/1e6).toFixed(2)}M</div><div class="l">WIP value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">${ORDERBOOK.boats.length}</div><div class="l">Boats in build</div></div></div>
+  <div class="secttl">Stock value — counted on the app <span class="scount">${gbpF(countedVal)} · ${data.length} lines</span></div>
+  <div class="barchart">${bySec.filter(x=>x.v>0).sort((a,b)=>b.v-a.v).map(x=>`<div class="barrow" onclick="setCur('${x.c.id}')"><div class="blabel">${x.c.n} <span class="mut">${x.n} line${x.n===1?'':'s'}</span></div><div class="btrack"><div class="bfill" style="width:${Math.round(x.v/maxV*100)}%;background:${SECT_COLOR[x.c.id]||'#888'}"></div></div><div class="bval" style="width:76px">${gbpF(x.v)}</div></div>`).join('')}<div class="barrow" style="border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:700"><div class="blabel">Counted total</div><div class="btrack" style="background:transparent"></div><div class="bval" style="width:76px">${gbpF(countedVal)}</div></div></div>
   <div class="mbars"><div class="mbar"><div class="mt">Delivered in — this month</div><div class="mv" style="color:#2E6B3E">${inMonth}</div><div class="mk" style="width:${Math.round(inMonth/mMax*100)}%;background:#2E6B3E"></div></div><div class="mbar"><div class="mt">Used out — this month</div><div class="mv" style="color:#B8341A">${outMonth}</div><div class="mk" style="width:${Math.round(outMonth/mMax*100)}%;background:#B8341A"></div></div>${fibreKg?`<div class="mbar"><div class="mt">Fibreglass laid up (kg)</div><div class="mv" style="color:#E34721">${fibreKg}</div><div class="mk" style="width:100%;background:#E34721"></div></div>`:''}</div>
   ${luMoves.length?`<div class="secttl">Materials laid up (from lay-up sheets)</div>
-  <div class="mbars"><div class="mbar"><div class="mt">Lay-up lines logged</div><div class="mv">${luMoves.length}</div></div><div class="mbar"><div class="mt">Total laid up (kg)</div><div class="mv" style="color:#E34721">${luKg}</div></div><div class="mbar"><div class="mt">Hulls covered</div><div class="mv">${luHulls}</div></div></div>
+  <div class="mbars"><div class="mbar"><div class="mt">Lay-up lines logged</div><div class="mv">${luMoves.length}</div></div><div class="mbar"><div class="mt">Total laid up (kg)</div><div class="mv" style="color:#E34721">${luKg}</div></div><div class="mbar"><div class="mt">Hulls covered</div><div class="mv">${luHulls}</div></div>${costPerHull?`<div class="mbar"><div class="mt">Avg material £ / hull</div><div class="mv" style="color:#2E6B3E">${gbpF(costPerHull)}</div></div>`:''}</div>
   <div class="dcols">
    <div class="panel"><h3>Top materials used <span class="cnt">kg</span></h3><div class="pbody">${luTop.map(x=>`<div class="drow"><div class="m"><div class="t">${esc(x.k)}</div><div class="btrack" style="margin-top:6px;height:8px"><div class="bfill" style="width:${Math.round(x.v/luMax*100)}%;background:#E34721;height:8px"></div></div></div><span class="cond">${Math.round(x.v)} kg</span></div>`).join('')}</div></div>
    <div class="panel"><h3>Recent lay-ups <span class="cnt">${luMoves.length}</span></h3><div class="pbody">${luMoves.slice(0,12).map(m=>`<div class="drow"><div class="m"><div class="t">${esc(m.item||'?')} — ${Math.abs(Number(m.qty)||0)} kg</div><div class="s">${esc(m.date||'')}${m.ref?' · '+esc(m.ref):''}${m.person?' · '+esc(m.person):''}</div></div></div>`).join('')}</div></div>
   </div>`:''}
   <div class="dcols">
-   <div class="panel"><h3>Needs reordering <span class="cnt">${reorder.length}</span></h3><div class="pbody">${reorder.length?reorder.map(x=>rrow(x.o,x.k)).join(''):'<div class="dempty">Nothing out of stock or running low 👍</div>'}</div></div>
-   <div class="panel"><h3>Expiring &amp; expired <span class="cnt">${exp.length}</span></h3><div class="pbody">${exp.length?exp.map(erow).join(''):'<div class="dempty">Nothing expired or expiring within 90 days 👍</div>'}</div></div>
+   <div class="panel"><h3>Needs reordering <span class="cnt">${reorder.length}${reorderVal?' · '+gbpF(reorderVal):''}</span></h3><div class="pbody">${reorder.length?reorder.map(x=>rrow(x.o,x.k)).join(''):'<div class="dempty">Nothing out of stock or running low 👍</div>'}</div></div>
+   <div class="panel"><h3>Expiring &amp; expired <span class="cnt">${exp.length}${expiredVal?' · '+gbpF(expiredVal)+' at risk':''}</span></h3><div class="pbody">${exp.length?exp.map(erow).join(''):'<div class="dempty">Nothing expired or expiring within 90 days 👍</div>'}</div></div>
   </div>
   ${badQty.length?`<div class="secttl">Check these — more in stock than was received</div><div class="panel"><div class="pbody">${badQty.map(hrow).join('')}</div></div>`:''}
   <div class="secttl">Recent movements</div>
   <div class="panel"><div class="pbody">${moves.length?moves.slice(0,15).map(mrow).join(''):'<div class="dempty">No deliveries or usage logged yet. Use the <b>Delivery</b> and <b>Usage</b> buttons.</div>'}</div></div>
-  <div class="secttl">Stock by section</div>
+  <div class="secttl">Units in stock by section</div>
   <div class="barchart">${bySec.map(x=>`<div class="barrow" onclick="setCur('${x.c.id}')"><div class="blabel">${x.c.n} <span class="mut">${x.n} line${x.n===1?'':'s'}</span></div><div class="btrack"><div class="bfill" style="width:${Math.round(x.u/maxU*100)}%;background:${SECT_COLOR[x.c.id]||'#888'}"></div></div><div class="bval">${x.u}</div></div>`).join('')}<div class="barrow" style="border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:700"><div class="blabel">All sections</div><div class="btrack" style="background:transparent"></div><div class="bval">${units}</div></div></div>`;
 }
 function setCur(v){ cur=v; const sel=document.getElementById('catSel'); if(sel)sel.value=v; render(); }
