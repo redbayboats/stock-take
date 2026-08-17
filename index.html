@@ -350,12 +350,39 @@ button:focus-visible,.snav:focus-visible,.tchip:focus-visible{outline:2px solid 
   </div>
 </div>
 
+<datalist id="staffDl">
+  <option value="Vaidas Markovas">Fibreglass Manager</option>
+  <option value="Audrius Voroblevas">Fibreglasser</option>
+  <option value="Ricardas Seputis">Fibreglasser</option>
+  <option value="Kieran Kerr">Tuber</option>
+  <option value="Mark Harris">Tuber</option>
+  <option value="Michael Eliott">Fitter</option>
+  <option value="Aidan McNaughton">Fitter</option>
+  <option value="Michael Watterson">Carpenter</option>
+  <option value="Sylvester Fraczkiewicz">Carpenter</option>
+  <option value="Steve Maher">Welder</option>
+  <option value="Eugene Dallat">Mechanic</option>
+  <option value="Paddy Magee">Marine Engineer</option>
+  <option value="Paddy McCambridge">Marine Engineer</option>
+  <option value="Niall McLaughlin">Operations Manager</option>
+  <option value="Liam McGhee"></option>
+  <option value="Shane Black"></option>
+  <option value="Cormac Kearns"></option>
+  <option value="Daniel Crawford"></option>
+  <option value="Jason Bonnar"></option>
+  <option value="Eoin Ritson"></option>
+  <option value="Cahir McNaughton"></option>
+  <option value="Cathan Graham"></option>
+  <option value="Benny McNaughton"></option>
+  <option value="Eugene Grafton"></option>
+  <option value="Joseph McLaughlin"></option>
+</datalist>
 <div class="scrim" id="meScrim" onclick="meClose()"></div>
 <div class="sheet" id="meSheet">
   <div class="shh"><span class="t" id="meTitle">Edit record</span><button class="x" onclick="meClose()">✕</button></div>
   <label class="fld"><span class="k">Item / material</span><input id="me_item"></label>
   <div class="two"><label class="fld"><span class="k" id="meQtyLbl">Quantity</span><input id="me_qty" inputmode="decimal"></label><label class="fld"><span class="k">Date</span><input id="me_date" type="date"></label></div>
-  <div class="two"><label class="fld"><span class="k">Hull / reference</span><input id="me_ref"></label><label class="fld"><span class="k">Person</span><input id="me_person"></label></div>
+  <div class="two"><label class="fld"><span class="k">Hull / reference</span><input id="me_ref"></label><label class="fld"><span class="k">Person</span><input id="me_person" list="staffDl"></label></div>
   <label class="fld"><span class="k">Note (batch etc.)</span><input id="me_note"></label>
   <button class="save" onclick="saveMoveEdit()">Save changes</button>
   <button class="del" onclick="delMoveEdit()">🗑 Delete this record</button>
@@ -369,7 +396,7 @@ button:focus-visible,.snav:focus-visible,.tchip:focus-visible{outline:2px solid 
     <label class="fld"><span class="k">Date</span><input id="mv_date" type="date"></label>
   </div>
   <label class="fld"><span class="k" id="mvRefLabel">Reference</span><input id="mv_ref"></label>
-  <label class="fld"><span class="k">Person</span><input id="mv_person"></label>
+  <label class="fld"><span class="k">Person</span><input id="mv_person" list="staffDl"></label>
   <label class="fld"><span class="k">Note (optional)</span><input id="mv_note"></label>
   <button class="save" id="mvSave" onclick="applyMovement()">Save</button>
 </div>
@@ -1438,12 +1465,12 @@ function scanRowHtml(r){ r=Object.assign({desc:'',qty:'1',hull:'',person:'',date
  if(scanKind==='wood') return `<div class="scanrow">
    <div class="two"><label class="fld"><span class="k">Wood / board</span><input class="s_desc" list="scanDl" value="${esc(r.desc)}" oninput="woodSnapUI(this)"></label><label class="fld" style="flex:0 0 84px"><span class="k">Qty</span><input class="s_qty" inputmode="numeric" value="${esc(r.qty)}"></label></div>
    <label class="fld"><span class="k">Deduct from stock line</span><select class="fsel s_match">${matchOpts(r.match,'— just log it (no stock deduction)')}</select></label>
-   <div class="two"><label class="fld"><span class="k">Hull / job</span><input class="s_hull" value="${esc(r.hull)}"></label><label class="fld"><span class="k">Taken by</span><input class="s_person" value="${esc(r.person)}"></label></div>
+   <div class="two"><label class="fld"><span class="k">Hull / job</span><input class="s_hull" value="${esc(r.hull)}"></label><label class="fld"><span class="k">Taken by</span><input class="s_person" list="staffDl" value="${esc(r.person)}"></label></div>
    <label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label>
    <button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button></div>`;
  if(scanKind==='layup') return `<div class="scanrow">
    <div class="two"><label class="fld"><span class="k">Material</span><input class="s_desc" list="scanDl" value="${esc(r.desc)}"></label><label class="fld" style="flex:0 0 84px"><span class="k">Weight lb</span><input class="s_lb" inputmode="decimal" value="${esc(r.lb)}" oninput="const k=this.closest('.scanrow').querySelector('.s_kg'); const v=parseFloat(this.value); k.value=isNaN(v)?'':(Math.round(v*0.45359237*10)/10)"></label><label class="fld" style="flex:0 0 84px"><span class="k">= kg</span><input class="s_kg" inputmode="decimal" value="${esc(r.kg)}"></label></div>
-   <div class="two"><label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label><label class="fld"><span class="k">Person</span><input class="s_person" value="${esc(r.person)}"></label></div>
+   <div class="two"><label class="fld"><span class="k">Date</span><input class="s_date" type="date" value="${esc(r.date)}"></label><label class="fld"><span class="k">Person</span><input class="s_person" list="staffDl" value="${esc(r.person)}"></label></div>
    <label class="fld"><span class="k">Batch no.</span><input class="s_batch" value="${esc(r.batch)}"></label>
    <button type="button" class="more" onclick="this.parentNode.remove()">✕ remove this line</button></div>`;
  return `<div class="scanrow">
