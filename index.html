@@ -926,6 +926,7 @@ const WOOD=[
 function matchWood(desc){ const s=String(desc||'').toLowerCase(); if(!s.trim())return null;
  const m=s.match(/(\d+(?:\.\d+)?)\s*mm/)||s.match(/\b(\d{1,2})\b/); const sz=m?parseFloat(m[1]):null;
  const near=t=>{ const cs=WOOD.filter(w=>w.t===t); if(sz==null)return cs[0]; let best=cs[0],bd=1e9; cs.forEach(c=>{ const d=Math.abs(c.s-sz); if(d<bd){bd=d;best=c;} }); return best; };
+ if(/teak/.test(s))return null;
  if(/toilet door|oak door|dark oak|light oak/.test(s))return WOOD.find(w=>w.t==='TOILET DOOR OAK');
  if(/hatch/.test(s))return WOOD.find(w=>w.t===(/walnut/.test(s)?'SEAT HATCHES WALNUT':'SEAT HATCHES OAK'));
  if(/chipboard/.test(s))return WOOD.find(w=>w.t==='MELAMINE 18mm Chipboard');
@@ -940,6 +941,7 @@ function matchWood(desc){ const s=String(desc||'').toLowerCase(); if(!s.trim())r
 const round2=x=>Math.round(x*100)/100;
 // defaultCost = £ value of ONE COUNTED STOCK UNIT (per roll/sheet/drum/tin) for stock valuation
 function defaultCost(desc){
+ if(/teak/i.test(String(desc||'')))return null;  // teak & holly: premium sole material, no catalogue price — set per item
  const w=matchWood(desc); if(w)return w.p;                              // wood: price already per sheet
  const s=String(desc||'').toLowerCase();
  if(/acetone/.test(s))return 324;                                       // per drum
@@ -984,8 +986,12 @@ function renderValue(){
  const tmax=Math.max(...STOCKVAL.trend.map(t=>t[1]));
  const kpi=(v,l)=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div></div>`;
  const ob=ORDERBOOK.boats, obVal=ob.reduce((s,b)=>s+b.sell,0), wipVal=ob.reduce((s,b)=>s+b.wip,0);
+ const np=data.filter(o=>{const n=parseFloat(o.rem);return n>0&&o.cat!=='prop'&&!(effCost(o)>0);});
+ const npProp=data.filter(o=>{const n=parseFloat(o.rem);return n>0&&o.cat==='prop'&&!(effCost(o)>0);}).length;
  wrap.innerHTML=`<div class="secttl">Stock value <span class="scount">${STOCKVAL.date} valuation</span></div>
   <div class="kpis">${kpi(gbpF(STOCKVAL.total),'Total stock value')}${kpi(gbpF(obVal),'Order book')}${kpi(gbpF(wipVal),'WIP value')}${kpi(ob.length,'Boats in build')}</div>
+  ${(np.length||npProp)?`<div class="secttl">Needs a price <span class="scount">these count as £0 in the app's totals until a Unit cost is set</span></div>
+  <div class="panel" style="margin-bottom:22px"><div class="pbody">${np.map(o=>`<div class="drow" onclick="openEdit('${o.rowId}')"><div class="m"><div class="t">${esc(o.desc)||'(no description)'}</div><div class="s">${ID2NAME[o.cat]}${o.loc?' · '+esc(o.loc):''} · Qty ${esc(o.rem)}</div></div><span class="tag low">set £</span></div>`).join('')}${npProp?`<div class="dempty">…plus ${npProp} propellers with no value — open any prop and set a Unit cost if you want it in the valuation.</div>`:''}</div></div>`:''}
   <div class="secttl">Value by area</div>
   <div class="barchart">${A.map(a=>`<div style="display:flex;align-items:center;gap:12px;padding:6px 0"><div style="width:210px;flex:none;font-size:13.5px">${esc(a.n)}</div><div style="flex:1;background:var(--mist);border-radius:6px;height:20px;overflow:hidden;min-width:40px"><div style="width:${Math.round(a.v/max*100)}%;height:100%;background:#E34721;border-radius:6px"></div></div><div style="width:96px;flex:none;text-align:right;font-family:var(--fh);font-size:15px">${gbpF(a.v)}</div></div>`).join('')}</div>
   <div class="secttl">Stock value — 10‑year trend</div>
@@ -1122,7 +1128,7 @@ function renderDash(){
   <div class="kpis">${kpi(data.length,'Lines of stock')}${kpi(units,'Total units')}${kpi(out.length,'Out of stock',out.length?'bad':'')}${kpi(expired.length,'Expired',expired.length?'bad':'')}</div>
   <div class="secttl">Business at a glance <span class="scount">July 2026</span></div>
   <div class="kpis"><div class="kpi" style="cursor:pointer" onclick="setCur('value')"><div class="v">£${(STOCKVAL.total/1e6).toFixed(2)}M</div><div class="l">Total stock value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(obVal/1e6).toFixed(2)}M</div><div class="l">Order book</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">£${(wipVal/1e6).toFixed(2)}M</div><div class="l">WIP value</div></div><div class="kpi" style="cursor:pointer" onclick="setCur('orders')"><div class="v">${ORDERBOOK.boats.length}</div><div class="l">Boats in build</div></div></div>
-  <div class="secttl">Stock value — counted on the app <span class="scount">${gbpF(countedVal)} · ${data.length} lines</span></div>
+  <div class="secttl">Stock value — counted on the app <span class="scount">${gbpF(countedVal)} · ${data.length} lines${(()=>{const n=data.filter(o=>{const q=parseFloat(o.rem);return q>0&&o.cat!=='prop'&&!(effCost(o)>0);}).length;return n?` · <span style="color:var(--warn);cursor:pointer;font-weight:700" onclick="setCur('value')">${n} need a price →</span>`:'';})()}</span></div>
   <div class="barchart">${bySec.filter(x=>x.v>0).sort((a,b)=>b.v-a.v).map(x=>`<div class="barrow" onclick="setCur('${x.c.id}')"><div class="blabel">${x.c.n} <span class="mut">${x.n} line${x.n===1?'':'s'}</span></div><div class="btrack"><div class="bfill" style="width:${Math.round(x.v/maxV*100)}%;background:${SECT_COLOR[x.c.id]||'#888'}"></div></div><div class="bval" style="width:76px">${gbpF(x.v)}</div></div>`).join('')}<div class="barrow" style="border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:700"><div class="blabel">Counted total</div><div class="btrack" style="background:transparent"></div><div class="bval" style="width:76px">${gbpF(countedVal)}</div></div></div>
   <div class="mbars"><div class="mbar"><div class="mt">Delivered in — this month</div><div class="mv" style="color:#2E6B3E">${inMonth}</div><div class="mk" style="width:${Math.round(inMonth/mMax*100)}%;background:#2E6B3E"></div></div><div class="mbar"><div class="mt">Used out — this month</div><div class="mv" style="color:#B8341A">${outMonth}</div><div class="mk" style="width:${Math.round(outMonth/mMax*100)}%;background:#B8341A"></div></div>${fibreKg?`<div class="mbar"><div class="mt">Fibreglass laid up (kg)</div><div class="mv" style="color:#E34721">${fibreKg}</div><div class="mk" style="width:100%;background:#E34721"></div></div>`:''}</div>
   ${luMoves.length?`<div class="secttl">Materials laid up (from lay-up sheets)</div>
